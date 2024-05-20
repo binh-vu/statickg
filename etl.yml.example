@@ -1,0 +1,12 @@
+version: 1
+
+extractors:
+  - name: commodities
+    type: drepr
+    args:
+      path: extractors/commodity.yml
+
+inputs:
+  entities:
+    path: data/entities/{name}.csv
+    extractor: "{name}"
