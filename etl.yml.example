@@ -3,10 +3,12 @@ version: 1
 extractors:
   - name: commodities
     type: drepr
+    ext: ttl
     args:
       path: extractors/commodity.yml
+      format: turtle
 
 inputs:
   entities:
-    path: data/entities/{name}.csv
-    extractor: "{name}"
+    path: data/entities/commodities.csv
+    extractor: commodities

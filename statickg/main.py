@@ -7,7 +7,14 @@ import serde.json
 from hugedict.sqlite import SqliteDict, SqliteDictArgs, SqliteDictFieldType
 from loguru import logger
 
-from statickg.models import ETLConfig, FileProcessStatus, InputFile, Repository
+from statickg.models import (
+    ETLConfig,
+    Extractor,
+    ExtractorImpl,
+    InputFile,
+    ProcessStatus,
+    Repository,
+)
 
 
 class StaticKG:
@@ -19,23 +26,23 @@ class StaticKG:
 
         self.prepare_work_dir(workdir)
 
-        # self.etl_cache: SqliteDict[str, FileProcessStatus] =
-        self.etl, self.state_cache = SqliteDict.mul2(
+        self.build_cache, self.etl_cache = SqliteDict.mul2(
             workdir / "etl.db",
             SqliteDictArgs(
-                tablename="files",
+                tablename="build",
                 keytype=SqliteDictFieldType.str,
                 ser_value=orjson.dumps,
                 deser_value=orjson.loads,
             ),
             SqliteDictArgs(
-                tablename="extractions",
+                tablename="process",
                 keytype=SqliteDictFieldType.str,
                 ser_value=lambda x: orjson.dumps(x.to_dict()),
-                deser_value=lambda x: FileProcessStatus.from_dict(orjson.loads(x)),
+                deser_value=lambda x: ProcessStatus.from_dict(orjson.loads(x)),
             ),
         )
 
+        self.extractors: dict[str, ExtractorImpl] = {}
         self.logger = logger.bind(name="statickg")
         self.logger.add(
             workdir / "logs/{time}.log", retention="30 days", diagnose=False
@@ -47,22 +54,29 @@ class StaticKG:
             input_outdir.mkdir(parents=True, exist_ok=True)
 
             infiles = self.data_dir.glob(input.path)
-            prev_infiles = self.etl_cache[f"input:{input_name}"]
+            prev_infiles = self.build_cache[f"input:{input_name}"]
 
             # make sure that previously deleted files are removed
             self.remove_deleted_files(infiles, prev_infiles, input_outdir)
+            # then update the files that are currently used
+            self.build_cache[f"input:{input_name}"] = [f.relpath for f in infiles]
 
+            extractor = self.etl.extractors[input.extractor]
+            extractor_impl = self.load_extractor(extractor)
+
+            # now loop through the input files and extract them.
             for infile in infiles:
-                outfile = input.get_outfile(input_outdir)
+                outfile = input_outdir / infile.relpath
+                outfile = outfile.parent / f"{outfile.stem}.{extractor.ext}"
+
                 if outfile.exists() and infile.relpath in self.etl_cache:
                     status = self.etl_cache[infile.relpath]
                     if status.key == infile.key and status.is_success:
                         rebuild = False
 
                 if rebuild:
-                    extractor = self.load_extractor(input.extractor)
-                    extractor.extract(infile.path, outfile)
-                    self.etl_cache[infile.relpath] = FileProcessStatus(
+                    extractor_impl.extract(infile.path, outfile)
+                    self.etl_cache[infile.relpath] = ProcessStatus(
                         key=infile.key, is_success=True
                     )
 
@@ -79,8 +93,13 @@ class StaticKG:
                 (basedir / oldfile).unlink()
                 self.logger.debug("Remove {}", oldfile)
 
-    def load_extractor(self, extractor: str):
-        pass
+    def load_extractor(self, extractor: Extractor):
+        if extractor.name not in self.extractors:
+            self.extractors[extractor.name] = extractor.create(
+                self.workdir / "statickg_extractors",
+                self.etl_cache,
+            )
+        return self.extractors[extractor.name]
 
     def prepare_work_dir(self, workdir: Path):
         """Prepare the working directory for the ETL process"""
