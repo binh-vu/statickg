@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+import sys
 from pathlib import Path
 
 import orjson
@@ -22,11 +24,11 @@ class StaticKG:
     def __init__(self, etl: ETLConfig, workdir: Path, data_dir: Repository):
         self.etl = etl
         self.data_dir = data_dir
-        self.workdir = workdir
+        self.workdir = workdir.resolve()
 
-        self.prepare_work_dir(workdir)
+        self.prepare_work_dir()
 
-        self.build_cache, self.etl_cache = SqliteDict.mul2(
+        dicts = SqliteDict.mul2(
             workdir / "etl.db",
             SqliteDictArgs(
                 tablename="build",
@@ -41,34 +43,58 @@ class StaticKG:
                 deser_value=lambda x: ProcessStatus.from_dict(orjson.loads(x)),
             ),
         )
+        self.build_cache: SqliteDict[str, list[str]] = dicts[0]
+        self.etl_cache: SqliteDict[str, ProcessStatus] = dicts[1]
 
         self.extractors: dict[str, ExtractorImpl] = {}
         self.logger = logger.bind(name="statickg")
         self.logger.add(
-            workdir / "logs/{time}.log", retention="30 days", diagnose=False
+            workdir / "logs/{time}.log",
+            rotation="00:00",
+            retention="30 days",
+            diagnose=False,
         )
 
-    def extract(self):
-        for input_name, input in self.etl.inputs.items():
-            input_outdir = self.workdir / "data" / input_name
-            input_outdir.mkdir(parents=True, exist_ok=True)
+    def run(self):
+        output_dir = self.workdir / "data"
 
-            infiles = self.data_dir.glob(input.path)
-            prev_infiles = self.build_cache[f"input:{input_name}"]
+        for task in self.etl.pipeline:
+            if task.output is None:
+                input_outdir = self.workdir / "data" / task.name
+            else:
+                input_outdir = self.workdir / "data" / task.output
+                input_outdir.mkdir(parents=True, exist_ok=True)
+
+            infiles = self.data_dir.glob(task.input)
+            if not task.optional and len(infiles) == 0:
+                raise ValueError(f"Input {task.name} is required but not found")
+
+            prev_infiles = self.build_cache.get(f"task:{task.name}", [])
 
             # make sure that previously deleted files are removed
             self.remove_deleted_files(infiles, prev_infiles, input_outdir)
             # then update the files that are currently used
-            self.build_cache[f"input:{input_name}"] = [f.relpath for f in infiles]
+            self.build_cache[f"task:{task.name}"] = [f.relpath for f in infiles]
 
-            extractor = self.etl.extractors[input.extractor]
+            extractor = self.etl.extractors[task.extractor]
             extractor_impl = self.load_extractor(extractor)
 
             # now loop through the input files and extract them.
             for infile in infiles:
-                outfile = input_outdir / infile.relpath
-                outfile = outfile.parent / f"{outfile.stem}.{extractor.ext}"
+                infile.key = infile.key + f":{extractor_impl.get_key()}"
 
+                if task.output is None:
+                    outfile = (output_dir / task.name / infile.relpath).parent
+                    outfile.mkdir(parents=True, exist_ok=True)
+                else:
+                    outfile = output_dir / task.output
+
+                if extractor.ext is not None:
+                    outfile = outfile / f"{infile.path.stem}.{extractor.ext}"
+                else:
+                    outfile = outfile / infile.path.name
+
+                rebuild = True
                 if outfile.exists() and infile.relpath in self.etl_cache:
                     status = self.etl_cache[infile.relpath]
                     if status.key == infile.key and status.is_success:
@@ -96,15 +122,15 @@ class StaticKG:
     def load_extractor(self, extractor: Extractor):
         if extractor.name not in self.extractors:
             self.extractors[extractor.name] = extractor.create(
-                self.workdir / "statickg_extractors",
+                self.extractor_dir,
                 self.etl_cache,
             )
         return self.extractors[extractor.name]
 
-    def prepare_work_dir(self, workdir: Path):
+    def prepare_work_dir(self):
         """Prepare the working directory for the ETL process"""
-        (workdir / "logs").mkdir(parents=True, exist_ok=True)
-        cfgfile = workdir / "config.json"
+        (self.workdir / "logs").mkdir(parents=True, exist_ok=True)
+        cfgfile = self.workdir / "config.json"
         if cfgfile.exists():
             if serde.json.deser(cfgfile) != self.etl.to_dict():
                 raise ValueError(
@@ -113,6 +139,25 @@ class StaticKG:
         else:
             serde.json.ser(self.etl.to_dict(), cfgfile, indent=2)
 
-        (workdir / "statickg_extractors").mkdir(parents=True, exist_ok=True)
-        (workdir / "statickg_extractors" / "__init__.py").touch()
-        (workdir / "data").mkdir(parents=True, exist_ok=True)
+        try:
+            importlib.import_module("extractors")
+
+            try:
+                importlib.import_module("etl_extractors")
+                raise ValueError(
+                    "Existing a python package named etl_extractors, please uninstall it because it is reserved to store extractor programs"
+                )
+            except ModuleNotFoundError:
+                self.extractor_dir = self.workdir / "etl_extractors"
+        except ModuleNotFoundError:
+            # we can use extractors as the name of the folder containing the extractors as it doesn't conflict with any existing
+            # python packages
+            self.extractor_dir = self.workdir / "extractors"
+
+        self.extractor_dir.mkdir(parents=True, exist_ok=True)
+        (self.extractor_dir / "__init__.py").touch(exist_ok=True)
+        (self.workdir / "data").mkdir(parents=True, exist_ok=True)
+
+        # so that python can find the extractors
+        if str(self.workdir) not in sys.path:
+            sys.path.insert(0, str(self.workdir))

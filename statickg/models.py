@@ -3,17 +3,17 @@ from __future__ import annotations
 import hashlib
 import subprocess
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import MutableMapping, TypeAlias
+from typing import MutableMapping, Optional, TypeAlias
 
 import serde.yaml
 from drepr.main import convert
 from loguru import logger
 
-from kgbuilder.kgbuilder.helper import import_func
+from statickg.helper import import_func
 
 Pattern: TypeAlias = str
 
@@ -49,18 +49,36 @@ class Repository(ABC):
     def glob(self, relpath: Pattern) -> list[InputFile]:
         raise NotImplementedError()
 
+    @abstractmethod
+    def fetch(self) -> bool:
+        raise NotImplementedError()
+
 
 class GitRepository(Repository):
     def __init__(self, repo: Path):
         self.repo = repo
         self.branch2files = {}
+        self.current_commit = None
+
+    def fetch(self) -> bool:
+        """Fetch new data. Return True if there is new data"""
+        # fetch from the remote repository
+        output = subprocess.check_output(["git", "pull"], cwd=self.repo)
+        if output != b"Already up to date.\n":
+            self.current_commit = self.get_current_commit()
+            return True
+
+        current_commit_id = self.get_current_commit()
+        if current_commit_id != self.current_commit:
+            # user has manually updated the repository
+            self.current_commit = current_commit_id
+            return True
+
+        return False
 
     def glob(self, relpath: Pattern) -> list[InputFile]:
-        matched_files = []
-        for file in self.all_files():
-            if fnmatch(file.relpath, relpath):
-                matched_files.append(file)
-        return matched_files
+        matched_files = {str(p.relative_to(self.repo)) for p in self.repo.glob(relpath)}
+        return [file for file in self.all_files() if file.relpath in matched_files]
 
     def all_files(self, branch: str = "main") -> list[InputFile]:
         if branch not in self.branch2files:
@@ -80,9 +98,17 @@ class GitRepository(Repository):
 
         return self.branch2files[branch]
 
+    def get_current_commit(self):
+        return (
+            subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo)
+            .decode()
+            .strip()
+        )
+
 
 class ExtractorType(str, Enum):
     DRepr = "drepr"
+    Copy = "copy"
 
 
 @dataclass
@@ -90,7 +116,7 @@ class Extractor:
     name: str
     type: ExtractorType
     args: dict
-    ext: str
+    ext: Optional[str]
 
     def to_dict(self):
         return {
@@ -105,13 +131,31 @@ class Extractor:
     ) -> ExtractorImpl:
         if self.type == ExtractorType.DRepr:
             return DReprExtractor(cache_dir, cache_db, self.args)
+        if self.type == ExtractorType.Copy:
+            return CopyExtractor(self.args)
         raise NotImplementedError(self.type)
 
 
 class ExtractorImpl(ABC):
+
+    @abstractmethod
+    def get_key(self) -> str:
+        raise NotImplementedError()
+
     @abstractmethod
     def extract(self, infile: Path, outfile: Path):
         raise NotImplementedError()
+
+
+class CopyExtractor(ExtractorImpl):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def get_key(self):
+        return "copy"
+
+    def extract(self, infile: Path, outfile: Path):
+        outfile.write_bytes(infile.read_bytes())
 
 
 class DReprExtractor(ExtractorImpl):
@@ -138,25 +182,34 @@ class DReprExtractor(ExtractorImpl):
             logger.info("[drepr] skip {}", args["path"])
 
         self.format = args["format"]
-        self.program = import_func(f"{outfile.parent}.{outfile.stem}.main")
+        assert self.format in {"turtle"}, self.format
+        self.program = import_func(f"{outfile.parent.name}.{outfile.stem}.main")
+        self.key = key
+
+    def get_key(self):
+        return self.key
 
     def extract(self, infile: Path, outfile: Path):
-        assert self.format == "ttl"
+        assert self.format == "turtle"
         output = self.program(infile)
         outfile.write_text(output)
 
 
 @dataclass
-class ExtractInput:
+class ETLTask:
     name: str
-    path: Pattern
+    input: Pattern
+    output: Optional[Path]
     extractor: str
+    optional: bool
 
     def to_dict(self):
         return {
             "name": self.name,
-            "path": self.path,
+            "input": self.input,
+            "output": self.output,
             "extractor": self.extractor,
+            "optional": self.optional,
         }
 
 
@@ -164,15 +217,16 @@ class ExtractInput:
 class ETLConfig:
     """Configuration to run a pipeline"""
 
-    extractors: dict[str, Extractor]
-    inputs: dict[str, ExtractInput]
+    extractors: dict[str, Extractor] = field(default_factory=dict)
+    transformers: dict[str, Extractor] = field(default_factory=dict)
+    pipeline: list[ETLTask] = field(default_factory=list)
 
     @staticmethod
     def parse(infile: Path):
         cfg = serde.yaml.deser(infile)
-        assert cfg.version == 1
+        assert cfg["version"] == 1
 
-        pipeline = ETLConfig(extractors={}, inputs={})
+        pipeline = ETLConfig()
         for extractor in cfg["extractors"]:
             assert (
                 extractor["name"] not in pipeline.extractors
@@ -181,15 +235,22 @@ class ETLConfig:
                 name=extractor["name"],
                 type=ExtractorType(extractor["type"]),
                 args=extractor["args"],
-                ext=extractor["ext"],
+                ext=extractor.get("ext", None),
             )
 
-        for name, input in cfg["inputs"].items():
-            assert name not in pipeline.inputs, f"Input {name} is duplicated"
-            pipeline.inputs[name] = ExtractInput(
-                name=name,
-                path=input["path"],
-                extractor=input["extractor"],
+        names = set()
+        for task in cfg["pipeline"]:
+            name = task["name"]
+            assert name not in names, f"Input {name} is duplicated"
+            names.add(name)
+            pipeline.pipeline.append(
+                ETLTask(
+                    name=name,
+                    input=task["input"],
+                    output=task.get("output", None),
+                    extractor=task["extractor"],
+                    optional=task.get("optional", False),
+                )
             )
 
         return pipeline
@@ -199,5 +260,5 @@ class ETLConfig:
             "extractors": [
                 extractor.to_dict() for extractor in self.extractors.values()
             ],
-            "inputs": [input.to_dict() for input in self.inputs.values()],
+            "pipeline": [task.to_dict() for task in self.pipeline],
         }
