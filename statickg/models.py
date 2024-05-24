@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -155,7 +156,7 @@ class CopyExtractor(ExtractorImpl):
         return "copy"
 
     def extract(self, infile: Path, outfile: Path):
-        outfile.write_bytes(infile.read_bytes())
+        shutil.copy(infile, outfile)
 
 
 class DReprExtractor(ExtractorImpl):
@@ -231,10 +232,21 @@ class ETLConfig:
             assert (
                 extractor["name"] not in pipeline.extractors
             ), f"Extractor {extractor['name']} is duplicated"
+
+            args = {}
+            for k, v in extractor["args"].items():
+                if isinstance(v, str) and v.startswith("::FILE_DIR::"):
+                    v = v[12:]
+                    if v[0] == "/":
+                        v = v[1:]
+                    args[k] = str(infile.parent.resolve() / v)
+                else:
+                    args[k] = v
+
             pipeline.extractors[extractor["name"]] = Extractor(
                 name=extractor["name"],
                 type=ExtractorType(extractor["type"]),
-                args=extractor["args"],
+                args=args,
                 ext=extractor.get("ext", None),
             )
 
