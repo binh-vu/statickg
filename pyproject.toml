@@ -13,6 +13,11 @@ orjson = "^3.10.3"
 hugedict = "^2.13.3"
 typer = "^0.12.3"
 
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.2"
+autoflake = "^2.3.1"
+pytest = "^8.2.1"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
