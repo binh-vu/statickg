@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from loguru import logger
 
-from statickg.main import StaticKG
-from statickg.models import ETLConfig, GitRepository
+from statickg.main import ETLPipelineRunner
+from statickg.models.prelude import GitRepository
 
 app = typer.Typer(pretty_exceptions_short=True, pretty_exceptions_enable=False)
 
@@ -40,13 +40,17 @@ def deploy_loop(
     ] = True,
 ):
     repo = GitRepository(datadir)
-    kgbuilder = StaticKG(ETLConfig.parse(cfg), workdir, repo)
+    kgbuilder = ETLPipelineRunner.from_config_file(
+        cfg,
+        workdir,
+        repo,
+    )
 
     # run a loop to continously deploy the pipeline.
     is_waiting = False
 
     if repo.fetch() or rebuild:
-        kgbuilder.run()
+        kgbuilder()
 
     while loop:
         has_new_data = repo.fetch()
@@ -54,7 +58,7 @@ def deploy_loop(
             logger.info(
                 "Found new changes in the data repository. Rerun the pipeline..."
             )
-            kgbuilder.run()
+            kgbuilder()
             is_waiting = False
 
         if not is_waiting:
