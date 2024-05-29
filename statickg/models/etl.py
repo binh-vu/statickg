@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -44,7 +45,10 @@ class Change(str, Enum):
 
 @dataclass
 class ETLFileTracker:
-    file_changes: list[tuple[str, Change]] = field(default_factory=list)
+    file_changes: dict[str, Change] = field(default_factory=dict)
+
+    def track(self, file: str, change: Change):
+        self.file_changes[file] = change
 
 
 @dataclass
@@ -93,6 +97,17 @@ class ETLConfig:
             for k, v in dirs.items():
                 if cfg.startswith(k):
                     return RelPath(basetype=v[0], basepath=v[1], relpath=cfg[len(k) :])
+
+                # exploit the fact that base
+                assert re.match(r"[a-zA-Z_:]+", k), f"Invalid base {k}"
+                matches = list(re.finditer(f"({k})" + r"\{([^\}]*)\}", cfg))[::-1]
+                for m in matches:
+                    cfg = (
+                        cfg[: m.start()]
+                        + (str(v[1] / m.group(2)) if m.group(2) != "" else str(v[1]))
+                        + cfg[m.end() :]
+                    )
+
             return cfg
         if isinstance(cfg, dict):
             for k, v in cfg.items():

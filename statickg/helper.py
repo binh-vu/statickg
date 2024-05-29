@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import glob
 import importlib
+import re
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
@@ -69,6 +71,28 @@ def import_attr(attr_ident: str):
     return getattr(module, cls)
 
 
+def get_latest_version(file_pattern: str | Path) -> int:
+    """Assuming the file pattern select list of files tagged with an integer version for every run, this
+    function return the latest version number that you can use to name your next run.
+
+    For example:
+    1. If your pattern matches folders: version_1, version_5, version_6, this function will return 6.
+    2. If your pattern does not match anything, return 0
+    """
+    files = [Path(file) for file in sorted(glob.glob(str(file_pattern)))]
+    if len(files) == 0:
+        return 0
+
+    versions: list[int] = []
+    for file in files:
+        match = re.match(r"[^0-9]*(\d+)[^0-9]*", file.name)
+        if match is None:
+            raise Exception("Invalid naming")
+        versions.append(int(match.group(1)))
+
+    return sorted(versions)[-1]
+
+
 def json_ser(obj: dict, indent: int = 0) -> bytes:
     if indent == 0:
         option = orjson.OPT_PASSTHROUGH_DATACLASS
@@ -79,17 +103,24 @@ def json_ser(obj: dict, indent: int = 0) -> bytes:
 
 def json_ser_default_object(obj: Any):
     if isinstance(obj, RelPath):
-        return obj.get_str()
+        return obj.get_ident()
     raise TypeError
 
 
 def remove_deleted_files(
-    newfiles: list[InputFile], outdir: Path, tracker: ETLFileTracker
+    newfiles: list[InputFile], outdir: RelPath, tracker: ETLFileTracker
 ):
     new_filenames = {file.path.stem for file in newfiles}
-    for file in outdir.iterdir():
+    for file in outdir.get_path().iterdir():
         if file.is_file() and file.stem not in new_filenames:
-            tracker.file_changes.append((str(file), Change.REMOVE))
+            tracker.track(
+                RelPath(
+                    basetype=outdir.basetype,
+                    basepath=outdir.basepath,
+                    relpath=str(file.relative_to(outdir.basepath)),
+                ).get_ident(),
+                Change.REMOVE,
+            )
             file.unlink()
             logger.info("Remove deleted file {}", file)
 

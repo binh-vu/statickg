@@ -6,11 +6,23 @@ from pathlib import Path
 from typing import TypeAlias
 
 
+class BaseType(str, Enum):
+    CFG_DIR = "CFG_DIR"
+    REPO = "REPO"
+    DATA_DIR = "DATA_DIR"
+    WORK_DIR = "WORK_DIR"
+    DB_DIR = "DB_DIR"
+
+
 @dataclass
 class InputFile:
+    basetype: BaseType
     key: str
     relpath: str
     path: Path
+
+    def get_path_ident(self):
+        return get_ident(self.basetype, self.relpath)
 
 
 @dataclass
@@ -32,12 +44,6 @@ class ProcessStatus:
         )
 
 
-class BaseType(str, Enum):
-    CFG_DIR = "CFG_DIR"
-    REPO = "REPO"
-    DATA_DIR = "DATA_DIR"
-
-
 @dataclass
 class RelPath:
     basetype: BaseType
@@ -47,5 +53,9 @@ class RelPath:
     def get_path(self):
         return self.basepath / self.relpath
 
-    def get_str(self):
-        return f"::{self.basetype.value}::{self.relpath}"
+    def get_ident(self):
+        return get_ident(self.basetype, self.relpath)
+
+
+def get_ident(base: BaseType, relpath: str) -> str:
+    return f"::{base.value}::{relpath}"

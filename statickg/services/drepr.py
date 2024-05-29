@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import importlib
 import sys
+from importlib.metadata import version
 from pathlib import Path
-from typing import Mapping, NotRequired, TypedDict
+from typing import Callable, Mapping, NotRequired, TypedDict
 
 from drepr.main import convert
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 from statickg.helper import import_func, logger_helper, remove_deleted_files
 from statickg.models.prelude import Change, ETLFileTracker, RelPath, Repository
@@ -52,30 +53,37 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
         self.format = args["format"]
         assert self.format in {"turtle"}, self.format
         self.extension = {"turtle": "ttl"}[self.format]
+        self.drepr_version = version("drepr-v2").strip()
 
         if isinstance(args["path"], list):
             files = args["path"]
         else:
             files = [args["path"]]
 
-        self.programs = {}
+        self.programs: dict[str, tuple[str, Callable]] = {}
         for file in files:
             filepath = file.get_path()
             outfile = pkgdir / f"{filepath.stem}.py"
+            programkey = (
+                f"drepr:{self.drepr_version}:"
+                + hashlib.sha256(filepath.read_bytes()).hexdigest()
+            )
 
+            file_ident = file.get_ident()
             with self.cache.auto(
-                filepath=file.relpath,
-                key=hashlib.sha256(filepath.read_bytes()).hexdigest(),
+                filepath=file_ident,
+                key=programkey,
                 outfile=outfile,
             ) as notfound:
                 if notfound:
                     convert(repr=filepath, resources={}, progfile=outfile)
-                    self.logger.info("generate program {}", file.get_str())
+                    self.logger.info("generate program {}", file_ident)
                 else:
-                    self.logger.info("reuse program {}", file.get_str())
+                    self.logger.info("reuse program {}", file_ident)
 
-            self.programs[filepath.stem] = import_func(
-                f"{outfile.parent.name}.{outfile.stem}.main"
+            self.programs[filepath.stem] = (
+                programkey,
+                import_func(f"{outfile.parent.name}.{outfile.stem}.main"),
             )
 
     def forward(
@@ -95,7 +103,7 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
         outdir.mkdir(parents=True, exist_ok=True)
 
         # detect and remove deleted files
-        remove_deleted_files(infiles, outdir, tracker)
+        remove_deleted_files(infiles, args["output"], tracker)
 
         if len(self.programs) == 1:
             first_proram = next(iter(self.programs.values()))
@@ -112,28 +120,27 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
             for infile in tqdm(infiles, desc=readable_ptns, disable=self.verbose >= 2):
                 outfile = outdir / f"{infile.path.stem}.{self.extension}"
 
+                if len(self.programs) == 1:
+                    assert first_proram is not None
+                    programkey, program = first_proram
+                else:
+                    programkey, program = self.programs[infile.path.stem]
+
+                infile_ident = infile.get_path_ident()
                 with self.cache.auto(
-                    filepath=infile.relpath,
-                    key=infile.key,
+                    filepath=infile_ident,
+                    key=programkey + ":" + infile.key,
                     outfile=outfile,
                 ) as notfound:
                     if notfound:
-                        if len(self.programs) == 1:
-                            assert first_proram is not None
-                            program = first_proram
-                        else:
-                            program = self.programs[infile.path.stem]
-
-                        tracker.file_changes.append(
-                            (
-                                str(outfile),
-                                Change.MODIFY if outfile.exists() else Change.ADD,
-                            )
+                        tracker.track(
+                            infile_ident,
+                            Change.MODIFY if outfile.exists() else Change.ADD,
                         )
                         output = program(infile.path)
                         outfile.write_text(output)
 
-                    log(notfound, infile.relpath)
+                    log(notfound, infile_ident)
 
     def setup(self, workdir: Path):
         pkgname = "gen_programs"

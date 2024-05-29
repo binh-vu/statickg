@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TypeAlias
 
-from statickg.models.input_file import InputFile
+from statickg.models.input_file import BaseType, InputFile
 
 Pattern: TypeAlias = str
 
@@ -58,7 +58,12 @@ class GitRepository(Repository):
                 objectmode, objecttype, objectname, relpath = line.split()
                 assert objecttype == "blob"
                 files.append(
-                    InputFile(relpath=relpath, path=self.repo / relpath, key=objectname)
+                    InputFile(
+                        basetype=BaseType.REPO,
+                        relpath=relpath,
+                        path=self.repo / relpath,
+                        key=objectname,
+                    )
                 )
             self.branch2files[branch] = files
 

@@ -79,6 +79,7 @@ class BaseFileService(BaseService[A]):
                 files.extend(
                     [
                         InputFile(
+                            basetype=BaseType.DATA_DIR,
                             key=(
                                 hashlib.sha256(file.read_bytes()).hexdigest()
                                 if compute_missing_file_key
@@ -110,5 +111,5 @@ class BaseFileService(BaseService[A]):
 
     def get_readable_patterns(self, patterns: RelPath | list[RelPath]) -> str:
         if isinstance(patterns, list):
-            return ", ".join([p.get_str() for p in patterns])
-        return patterns.get_str()
+            return ", ".join([p.get_ident() for p in patterns])
+        return patterns.get_ident()

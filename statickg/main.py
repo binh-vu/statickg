@@ -49,6 +49,8 @@ class ETLPipelineRunner:
                 BaseType.CFG_DIR: cfg_file.parent,
                 BaseType.REPO: repo.repo,
                 BaseType.DATA_DIR: workdir / "data",
+                BaseType.WORK_DIR: workdir,
+                BaseType.DB_DIR: workdir / "databases",
             },
         )
         return ETLPipelineRunner(etl, workdir, repo)
@@ -61,6 +63,9 @@ class ETLPipelineRunner:
     def prepare_work_dir(self):
         """Prepare the working directory for the ETL process"""
         (self.workdir / "logs").mkdir(parents=True, exist_ok=True)
+        (self.workdir / "data").mkdir(parents=True, exist_ok=True)
+        (self.workdir / "databases").mkdir(parents=True, exist_ok=True)
+
         cfgfile = self.workdir / "config.json"
         if cfgfile.exists():
             etljson = json_ser(self.etl.to_dict(), indent=2)

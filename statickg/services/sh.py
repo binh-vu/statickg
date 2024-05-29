@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Mapping, TypedDict
+from typing import Mapping, NotRequired, TypedDict
+
+from tqdm import tqdm
 
 from statickg.helper import logger_helper
 from statickg.models.prelude import ETLFileTracker, RelPath, Repository
@@ -11,7 +13,7 @@ from statickg.services.interface import BaseFileService, BaseService
 
 class ShServiceConstructArgs(TypedDict):
     capture_output: bool
-    verbose: int
+    verbose: NotRequired[int]
 
 
 class ShServiceInvokeArgs(TypedDict):
@@ -33,6 +35,7 @@ class ShService(BaseFileService[ShServiceInvokeArgs]):
     ):
         super().__init__(name, workdir, args, services)
         self.capture_output = args["capture_output"]
+        self.verbose = args.get("verbose", 1)
 
     def forward(
         self,
@@ -54,20 +57,23 @@ class ShService(BaseFileService[ShServiceInvokeArgs]):
         else:
             fn = subprocess.check_call
 
+        readable_ptns = self.get_readable_patterns(args["input"])
         with logger_helper(
             self.logger,
             1,
-            extra_msg=f"matching {self.get_readable_patterns(args['input'])}",
+            extra_msg=f"matching {readable_ptns}",
         ) as log:
-            for infile in infiles:
+            for infile in tqdm(infiles, desc=readable_ptns, disable=self.verbose >= 2):
+                cmd = args["command"].format(FILEPATH=str(infile.path))
+                infile_ident = infile.get_path_ident()
                 with self.cache.auto(
-                    filepath=infile.relpath,
-                    key=infile.key,
+                    filepath=infile_ident,
+                    key=cmd + ":" + infile.key,
                     outfile=None,
                 ) as notfound:
                     if notfound:
                         fn(
-                            args["command"].format(FILEPATH=str(infile.path)),
+                            cmd,
                             shell=True,
                         )
-                    log(notfound, infile.relpath)
+                    log(notfound, infile_ident)

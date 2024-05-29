@@ -27,12 +27,13 @@ class CopyService(BaseFileService[CopyServiceInvokeArgs]):
             args["input"],
             unique_filename=True,
             optional=args.get("optional", False),
+            compute_missing_file_key=args.get("compute_missing_file_key", True),
         )
         outdir = args["output"].get_path()
         outdir.mkdir(parents=True, exist_ok=True)
 
         # detect and remove deleted files
-        remove_deleted_files(infiles, outdir, tracker)
+        remove_deleted_files(infiles, args["output"], tracker)
 
         # now loop through the input files and copy them
         with logger_helper(
@@ -43,11 +44,12 @@ class CopyService(BaseFileService[CopyServiceInvokeArgs]):
             for infile in infiles:
                 outfile = outdir / infile.path.name
 
+                infile_ident = infile.get_path_ident()
                 with self.cache.auto(
-                    filepath=infile.relpath,
+                    filepath=infile_ident,
                     key=infile.key,
                     outfile=outfile,
                 ) as notfound:
                     if notfound:
                         shutil.copy(infile.path, outfile)
-                    log(notfound, infile.relpath)
+                    log(notfound, infile_ident)
