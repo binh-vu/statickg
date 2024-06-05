@@ -42,7 +42,12 @@ class ETLPipelineRunner:
         )
 
     @staticmethod
-    def from_config_file(cfg_file: Path, workdir: Path, repo: GitRepository):
+    def from_config_file(
+        cfg_file: Path,
+        workdir: Path,
+        repo: GitRepository,
+        overwrite_config: bool = False,
+    ):
         etl = ETLConfig.parse(
             cfg_file,
             {
@@ -53,6 +58,11 @@ class ETLPipelineRunner:
                 BaseType.DB_DIR: workdir / "databases",
             },
         )
+
+        if overwrite_config:
+            if (workdir / "config.json").exists():
+                (workdir / "config.json").unlink()
+
         return ETLPipelineRunner(etl, workdir, repo)
 
     def __call__(self):

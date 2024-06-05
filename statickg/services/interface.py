@@ -57,6 +57,7 @@ class BaseFileService(BaseService[A]):
             workdir / f"services/{self.get_service_name()}/{slugify(name)}.db"
         )
         self.logger = logger.bind(name=get_classpath(self.__class__).rsplit(".", 1)[0])
+        self.args = args
 
     def get_service_name(self):
         name = self.__class__.__name__

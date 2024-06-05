@@ -38,13 +38,16 @@ def deploy_loop(
     loop: Annotated[
         bool, typer.Option("--loop/--no-loop", help="Continuously monitor for updates")
     ] = True,
+    overwrite_config: Annotated[
+        bool,
+        typer.Option(
+            "--overwrite-config/--no-overwrite-config",
+            help="Overwrite the configuration file if it exists",
+        ),
+    ] = False,
 ):
     repo = GitRepository(datadir)
-    kgbuilder = ETLPipelineRunner.from_config_file(
-        cfg,
-        workdir,
-        repo,
-    )
+    kgbuilder = ETLPipelineRunner.from_config_file(cfg, workdir, repo, overwrite_config)
 
     # run a loop to continously deploy the pipeline.
     is_waiting = False

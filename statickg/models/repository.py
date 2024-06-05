@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 from abc import ABC, abstractmethod
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, TypeAlias
 
@@ -17,6 +18,14 @@ class Repository(ABC):
 
     @abstractmethod
     def fetch(self) -> bool:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_version_id(self) -> str:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_version_creation_time(self) -> datetime:
         raise NotImplementedError()
 
 
@@ -84,3 +93,19 @@ class GitRepository(Repository):
             .decode()
             .strip()
         )
+
+    def get_commit_time(self, commit_id: str):
+        unix_timestamp = (
+            subprocess.check_output(
+                ["git", "show", "--no-patch", "--format=%ct", commit_id], cwd=self.repo
+            )
+            .decode()
+            .strip()
+        )
+        return datetime.fromtimestamp(int(unix_timestamp))
+
+    def get_version_id(self) -> str:
+        return self.get_current_commit()
+
+    def get_version_creation_time(self) -> datetime:
+        return self.get_commit_time(self.get_current_commit())
