@@ -3,7 +3,7 @@ from __future__ import annotations
 import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TypeAlias
+from typing import Optional, TypeAlias
 
 from statickg.models.input_file import BaseType, InputFile
 
@@ -23,16 +23,22 @@ class Repository(ABC):
 class GitRepository(Repository):
     def __init__(self, repo: Path):
         self.repo = repo
-        self.branch2files = {}
+        self.commit2files = {}
         self.current_commit = None
 
     def fetch(self) -> bool:
         """Fetch new data. Return True if there is new data"""
         # fetch from the remote repository
-        output = subprocess.check_output(["git", "pull"], cwd=self.repo)
-        if output != b"Already up to date.\n":
-            self.current_commit = self.get_current_commit()
-            return True
+        output = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=self.repo
+        )
+        if output.decode().strip() != "HEAD":
+            # we are in a branch and we can fetch the latest changes -- otherwise, we are in a detached HEAD state
+            # and we cannot fetch the latest changes (doing nothing)
+            output = subprocess.check_output(["git", "pull"], cwd=self.repo)
+            if output != b"Already up to date.\n":
+                self.current_commit = self.get_current_commit()
+                return True
 
         current_commit_id = self.get_current_commit()
         if current_commit_id != self.current_commit:
@@ -46,10 +52,13 @@ class GitRepository(Repository):
         matched_files = {str(p.relative_to(self.repo)) for p in self.repo.glob(relpath)}
         return [file for file in self.all_files() if file.relpath in matched_files]
 
-    def all_files(self, branch: str = "main") -> list[InputFile]:
-        if branch not in self.branch2files:
+    def all_files(self, commit_id: Optional[str] = None) -> list[InputFile]:
+        if commit_id is None:
+            commit_id = self.get_current_commit()
+
+        if commit_id not in self.commit2files:
             output = subprocess.check_output(
-                ["git", "ls-tree", "-r", branch], cwd=self.repo
+                ["git", "ls-tree", "-r", commit_id], cwd=self.repo
             )
 
             content = output.decode().strip().split("\n")
@@ -65,9 +74,9 @@ class GitRepository(Repository):
                         key=objectname,
                     )
                 )
-            self.branch2files[branch] = files
+            self.commit2files[commit_id] = files
 
-        return self.branch2files[branch]
+        return self.commit2files[commit_id]
 
     def get_current_commit(self):
         return (
