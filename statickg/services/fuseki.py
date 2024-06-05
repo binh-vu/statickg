@@ -8,8 +8,15 @@ from typing import Mapping, NotRequired, TypedDict
 from tqdm import tqdm
 
 from statickg.helper import get_latest_version, logger_helper
-from statickg.models.input_file import ProcessStatus
-from statickg.models.prelude import Change, ETLFileTracker, RelPath, Repository
+from statickg.models.prelude import (
+    Change,
+    ETLFileTracker,
+    ProcessStatus,
+    RelPath,
+    RelPathRefStr,
+    RelPathRefStrOrStr,
+    Repository,
+)
 from statickg.services.interface import BaseFileService, BaseService
 
 
@@ -19,16 +26,11 @@ class FusekiDataLoaderServiceConstructArgs(TypedDict):
     verbose: NotRequired[int]
 
 
-class FusekiDataLoaderServiceCmdArgs(TypedDict):
-    clear: str
-    insert: str
-
-
 class FusekiDataLoaderServiceInvokeArgs(TypedDict):
     input: RelPath | list[RelPath]
     input_basedir: RelPath
     dbdir: RelPath
-    command: str
+    command: RelPathRefStrOrStr
     optional: bool
 
 
@@ -118,6 +120,10 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
             1,
             extra_msg=f"matching {readable_ptns}",
         ) as log:
+            cmd = args["command"]
+            if isinstance(cmd, RelPathRefStr):
+                cmd = cmd.deref()
+
             for i in tqdm(
                 range(0, len(infiles), self.batch_size),
                 desc=readable_ptns,
@@ -125,12 +131,6 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
             ):
                 batch = infiles[i : i + self.batch_size]
                 batch_ident = [file.get_path_ident() for file in batch]
-                cmd = args["command"].format(
-                    DB_DIR=dbdir,
-                    FILES=" ".join(
-                        [str(file.path.relative_to(input_basedir)) for file in batch]
-                    ),
-                )
 
                 # mark the files as processing
                 for infile, infile_ident in zip(batch, batch_ident):
@@ -138,7 +138,18 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
                         prefix_key + "|" + infile.key, is_success=False
                     )
 
-                fn(cmd, shell=True)
+                fn(
+                    cmd.format(
+                        DB_DIR=dbdir,
+                        FILES=" ".join(
+                            [
+                                str(file.path.relative_to(input_basedir))
+                                for file in batch
+                            ]
+                        ),
+                    ),
+                    shell=True,
+                )
 
                 for infile, infile_ident in zip(batch, batch_ident):
                     self.cache.db[infile_ident] = ProcessStatus(

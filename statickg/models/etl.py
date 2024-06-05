@@ -8,7 +8,7 @@ from typing import Any
 
 import serde.yaml
 
-from statickg.models.input_file import BaseType, RelPath
+from statickg.models.input_file import BaseType, RefPathRef, RelPath, RelPathRefStr
 
 
 @dataclass
@@ -98,16 +98,22 @@ class ETLConfig:
                 if cfg.startswith(k):
                     return RelPath(basetype=v[0], basepath=v[1], relpath=cfg[len(k) :])
 
-                # exploit the fact that base
+            # try to parse ref string
+            refs = []
+            for k, v in dirs.items():
                 assert re.match(r"[a-zA-Z_:]+", k), f"Invalid base {k}"
                 matches = list(re.finditer(f"({k})" + r"\{([^\}]*)\}", cfg))[::-1]
                 for m in matches:
-                    cfg = (
-                        cfg[: m.start()]
-                        + (str(v[1] / m.group(2)) if m.group(2) != "" else str(v[1]))
-                        + cfg[m.end() :]
+                    refs.append(
+                        RefPathRef(
+                            m.start(),
+                            m.end(),
+                            RelPath(basetype=v[0], basepath=v[1], relpath=m.group(2)),
+                        )
                     )
 
+            if len(refs) > 0:
+                return RelPathRefStr(refs=refs, value=cfg)
             return cfg
         if isinstance(cfg, dict):
             for k, v in cfg.items():

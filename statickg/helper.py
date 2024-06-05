@@ -13,7 +13,7 @@ from hugedict.sqlite import SqliteDict
 from loguru import logger
 
 from statickg.models.etl import Change, ETLFileTracker
-from statickg.models.input_file import InputFile, ProcessStatus, RelPath
+from statickg.models.input_file import InputFile, ProcessStatus, RelPath, RelPathRefStr
 
 TYPE_ALIASES = {"typing.List": "list", "typing.Dict": "dict", "typing.Set": "set"}
 
@@ -104,6 +104,8 @@ def json_ser(obj: dict, indent: int = 0) -> bytes:
 def json_ser_default_object(obj: Any):
     if isinstance(obj, RelPath):
         return obj.get_ident()
+    if isinstance(obj, RelPathRefStr):
+        return obj.value
     raise TypeError
 
 

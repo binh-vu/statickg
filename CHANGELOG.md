@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Handle detached HEAD in Git repository.
+- Fix absolute path in ETL configuration
+
 ## [1.1.0] - 2024-05-29
 
 ### Added
