@@ -72,6 +72,3 @@ class VersionService(BaseFileService[VersionServiceInvokeArgs]):
             ),
         )
         g.serialize(outfile, format="turtle")
-
-
-class FusekiVersionService(VersionService): ...
