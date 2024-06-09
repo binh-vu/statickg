@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.1] - 2024-06-09
+
+### Added
+
+- Add missing dependency
+
 ## [1.2.0] - 2024-06-09
 
 ### Added
