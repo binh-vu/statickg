@@ -1,6 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.0] - 2024-06-09
+
+### Added
+
+- Add version
 
 ### Fixed
 
