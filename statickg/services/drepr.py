@@ -11,7 +11,7 @@ from drepr.main import convert
 from tqdm import tqdm
 
 from statickg.helper import import_func, logger_helper, remove_deleted_files
-from statickg.models.prelude import Change, ETLFileTracker, RelPath, Repository
+from statickg.models.prelude import Change, ETLOutput, RelPath, Repository
 from statickg.services.interface import BaseFileService, BaseService
 
 
@@ -90,7 +90,7 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
         self,
         repo: Repository,
         args: DReprServiceInvokeArgs,
-        tracker: ETLFileTracker,
+        tracker: ETLOutput,
     ):
         infiles = self.list_files(
             repo,
@@ -103,7 +103,7 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
         outdir.mkdir(parents=True, exist_ok=True)
 
         # detect and remove deleted files
-        remove_deleted_files(infiles, args["output"], tracker)
+        remove_deleted_files(infiles, args["output"])
 
         if len(self.programs) == 1:
             first_proram = next(iter(self.programs.values()))

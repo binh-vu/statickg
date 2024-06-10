@@ -7,7 +7,7 @@ from typing import Mapping, NotRequired, TypedDict
 from tqdm import tqdm
 
 from statickg.helper import logger_helper
-from statickg.models.prelude import ETLFileTracker, RelPath, Repository
+from statickg.models.prelude import ETLOutput, RelPath, Repository
 from statickg.services.interface import BaseFileService, BaseService
 
 
@@ -41,7 +41,7 @@ class ShService(BaseFileService[ShServiceInvokeArgs]):
         self,
         repo: Repository,
         args: ShServiceInvokeArgs,
-        tracker: ETLFileTracker,
+        tracker: ETLOutput,
     ):
         infiles = self.list_files(
             repo,

@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import http.client as httplib
+import re
 import shutil
 import subprocess
+from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Mapping, NotRequired, Sequence, TypedDict
+from typing import Iterable, Mapping, NotRequired, Optional, Sequence, TypedDict
+from urllib import request
+from uuid import uuid4
 
+import orjson
 import requests
 from rdflib import Graph
 from tqdm import tqdm
@@ -12,7 +19,7 @@ from tqdm import tqdm
 from statickg.helper import get_latest_version, logger_helper
 from statickg.models.prelude import (
     Change,
-    ETLFileTracker,
+    ETLOutput,
     InputFile,
     ProcessStatus,
     RelPath,
@@ -27,49 +34,133 @@ from statickg.services.version import VersionService, VersionServiceInvokeArgs
 class FusekiEndpoint(TypedDict):
     update: str
     gsp: str
+    start: RelPathRefStrOrStr
+    stop: RelPathRefStrOrStr
+    find_by_id: str
 
 
-class FusekiDataLoaderServiceConstructArgs(TypedDict):
+class FusekiServiceConstructArgs(TypedDict):
     capture_output: bool
     batch_size: int
     verbose: NotRequired[int]
 
 
+class FusekiLoadArgs(TypedDict):
+    command: RelPathRefStrOrStr
+    basedir: RelPath | str
+    dbdir: RelPath | str
+    optional: NotRequired[bool]
+
+
 class FusekiDataLoaderServiceInvokeArgs(TypedDict):
     input: RelPath | list[RelPath]
-    input_basedir: RelPath
-    dbdir: RelPath
-    endpoint: FusekiEndpoint
-    command: RelPathRefStrOrStr
-    optional: bool
     replaceable_input: NotRequired[RelPath | list[RelPath]]
+    endpoint: FusekiEndpoint
+    load: FusekiLoadArgs
+
+
+@dataclass
+class DBInfo:
+    # command and version of the database -- together with the file key, it uniquely
+    # identifies the file
+    key: str
+    version: int
+    dir: Path
+    hostname: Optional[str] = None
+
+    def get_file_key(self, filekey: str) -> str:
+        return self.key + "|" + filekey
+
+    def is_valid(self) -> bool:
+        return (self.dir / "_SUCCESS").exists()
+
+    def invalidate(self):
+        (self.dir / "_SUCCESS").unlink(missing_ok=True)
+
+    def mark_valid(self):
+        (self.dir / "_SUCCESS").touch()
+
+    def has_running_service(self) -> bool:
+        """Check if the directory has a running Fuseki service"""
+        return self.hostname is not None
+
+    def next(self) -> DBInfo:
+        """Get next directory for the database"""
+        return DBInfo(
+            key=self.key,
+            version=self.version + 1,
+            dir=self.dir.parent / f"version-{self.version + 1:03d}",
+        )
+
+    @staticmethod
+    def get_current_dbinfo(args: FusekiDataLoaderServiceInvokeArgs):
+        dbdir = args["load"]["dbdir"]
+        if isinstance(dbdir, str):
+            dbdir = Path(dbdir)
+        else:
+            dbdir = dbdir.get_path()
+
+        dbversion = get_latest_version(dbdir / "version-*")
+        dbdir = dbdir / f"version-{dbversion:03d}"
+
+        dbinfo = DBInfo(
+            key=f"cmd:{args['load']['command']}|version:{dbversion}",
+            version=dbversion,
+            dir=dbdir,
+        )
+
+        # try to find the hostname
+        output = (
+            subprocess.check_output(
+                args["endpoint"]["find_by_id"].format(ID=f"fuseki-{dbdir.name}"),
+                shell=True,
+            )
+            .decode()
+            .strip()
+        )
+
+        if output != "":
+            m = re.match(r"(\d+\.\d+\.\d+\.\d+):(\d+)", output)
+            if m is not None:
+                ip, port = m.group(1), m.group(2)
+                if ip == "0.0.0.0":
+                    hostname = f"http://localhost:{port}"
+                else:
+                    hostname = f"http://{ip}:{port}"
+            else:
+                assert output.isdigit(), output
+                hostname = f"http://localhost:{output}"
+            dbinfo.hostname = hostname
+        return dbinfo
 
 
 class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]):
-    """A service that can load data to Fuseki incrementally.
-    However, if a file is deleted or modified, it will reload the data from scratch."""
+    """A service that can ensure that the Fuseki service is running with the latest data."""
 
     def __init__(
         self,
         name: str,
         workdir: Path,
-        args: FusekiDataLoaderServiceConstructArgs,
+        args: FusekiServiceConstructArgs,
         services: Mapping[str, BaseService],
     ):
         super().__init__(name, workdir, args, services)
         self.capture_output = args.get("capture_output", False)
         self.verbose = args.get("verbose", 1)
         self.batch_size = args.get("batch_size", 10)
+        self.started_services = {}
+        self.hostname = "http://localhost"
 
     def forward(
         self,
         repo: Repository,
         args: FusekiDataLoaderServiceInvokeArgs,
-        tracker: ETLFileTracker,
+        tracker: ETLOutput,
     ):
-        dbversion = get_latest_version(args["dbdir"].get_path() / "version-*")
-        dbdir = args["dbdir"].get_path() / f"version-{dbversion:03d}"
+        args = deepcopy(args)
 
+        # --------------------------------------------------------------
+        # get all input files
         infiles = self.list_files(
             repo,
             args["input"],
@@ -89,9 +180,10 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
                 compute_missing_file_key=True,
             )
 
-        prefix_key = f"cmd:{args['command']}|version:{dbversion}"
-
-        can_load_incremental = (dbdir / "_SUCCESS").exists()
+        # --------------------------------------------------------------
+        # determine if we can load the data incrementally
+        dbinfo = DBInfo.get_current_dbinfo(args)
+        can_load_incremental = dbinfo.is_valid()
         if can_load_incremental:
             if len(infiles) + len(replaceable_infiles) != len(self.cache.db):
                 # delete files prevent incremental loading
@@ -101,7 +193,7 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
                     infile_ident = infile.get_path_ident()
                     if infile_ident in self.cache.db:
                         status = self.cache.db[infile_ident]
-                        if status.key == (prefix_key + "|" + infile.key):
+                        if status.key == dbinfo.get_file_key(infile.key):
                             if not status.is_success:
                                 can_load_incremental = False
                                 break
@@ -112,40 +204,30 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
                     else:
                         can_load_incremental = False
 
+        # --------------------------------------------------------------
+        # if we cannot load the data incrementally, we need to reload the data from scratch
         if not can_load_incremental:
             # invalidate the cache.
             self.cache.db.clear()
 
-            # we can reuse existing dbdir if it is not successful -- meaning that there is no Fuseki running on it
-            if dbdir.exists() and not (dbdir / "_SUCCESS").exists():
-                # clean up the directory
-                shutil.rmtree(dbdir)
+            if dbinfo.has_running_service():
+                # we cannot reuse the existing dbdir because a Fuseki service is running on it
+                # so we need to move to the next version
+                dbinfo = dbinfo.next()
             else:
-                # move to the next version and update the prefix key
-                dbversion += 1
-                prefix_key = f"cmd:{args['command']}|version:{dbversion}"
+                # we can reuse existing dbdir, however, if it's invalid, we need to clean previous data
+                if not dbinfo.is_valid():
+                    # clean up the directory
+                    shutil.rmtree(dbinfo.dir, ignore_errors=True)
 
-                # create a new directory for the new version
-                dbdir = args["dbdir"].get_path() / f"version-{dbversion:03d}"
-            dbdir.mkdir(exist_ok=True, parents=True)
-
+        # --------------------------------------------------------------
         # now loop through the input files and invoke them.
-        if self.capture_output:
-            fn = subprocess.check_output
-        else:
-            fn = subprocess.check_call
-
         readable_ptns = self.get_readable_patterns(args["input"])
-        input_basedir = args["input_basedir"].get_path()
         with logger_helper(
             self.logger,
             1,
             extra_msg=f"matching {readable_ptns}",
         ) as log:
-            cmd = args["command"]
-            if isinstance(cmd, RelPathRefStr):
-                cmd = cmd.deref()
-
             # filter out the files that are already loaded
             filtered_infiles: list[InputFile] = []
             for infile in infiles:
@@ -157,9 +239,7 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
             infiles = filtered_infiles
 
             # before we load the data, we need to clear success marker
-            (dbdir / "_SUCCESS").unlink(missing_ok=True)
-
-            has_lock = (dbdir / "tdb.lock").exists()
+            dbinfo.invalidate()
 
             for i in tqdm(
                 range(0, len(infiles), self.batch_size),
@@ -172,30 +252,16 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
                 # mark the files as processing
                 for infile, infile_ident in zip(batch, batch_ident):
                     self.cache.db[infile_ident] = ProcessStatus(
-                        prefix_key + "|" + infile.key, is_success=False
+                        dbinfo.get_file_key(infile.key), is_success=False
                     )
 
-                if has_lock:
-                    # if there is a lock file, we need to use the api
-                    for file in batch:
-                        self.upload_file(args["endpoint"], file.path)
-                else:
-                    fn(
-                        cmd.format(
-                            DB_DIR=dbdir,
-                            FILES=" ".join(
-                                [
-                                    str(file.path.relative_to(input_basedir))
-                                    for file in batch
-                                ]
-                            ),
-                        ),
-                        shell=True,
-                    )
+                # load the files
+                self.load_files(args, dbinfo, False, batch)
 
+                # mark the files as processed
                 for infile, infile_ident in zip(batch, batch_ident):
                     self.cache.db[infile_ident] = ProcessStatus(
-                        prefix_key + "|" + infile.key, is_success=True
+                        dbinfo.get_file_key(infile.key), is_success=True
                     )
                     log(True, infile_ident)
 
@@ -208,44 +274,116 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
                 infile_ident = infile.get_path_ident()
                 with self.cache.auto(
                     filepath=infile_ident,
-                    key=prefix_key + "|" + infile.key,
+                    key=dbinfo.get_file_key(infile.key),
                     outfile=None,
                 ) as notfound:
                     if notfound:
-                        if has_lock:
-                            # we are writing to the endpoint
-                            assert can_load_incremental
-
-                            g = Graph()
-                            g.parse(infile.path, format=self.detect_format(infile.path))
-                            # remove URIs
-                            self.remove_uris(
-                                args["endpoint"],
-                                (str(s) for s in g.subjects()),
-                            )
-                            # upload the files to endpoint
-                            self.upload_file(args["endpoint"], infile.path)
-                        else:
-                            # do not have lock, we need to make sure we run the command for the first time
-                            assert infile_ident not in self.cache.db
-
-                            fn(
-                                cmd.format(
-                                    DB_DIR=dbdir,
-                                    FILES=str(infile.path.relative_to(input_basedir)),
-                                ),
-                                shell=True,
-                            )
+                        self.load_files(args, dbinfo, True, [infile])
 
         # create a _SUCCESS file to indicate that the data is loaded successfully
-        (dbdir / "_SUCCESS").touch()
+        dbinfo.mark_valid()
+        return dbinfo
 
-    def remove_uris(self, endpoint: FusekiEndpoint, uris: Iterable[str]):
+    def start_fuseki(self, args: FusekiDataLoaderServiceInvokeArgs, dbinfo: DBInfo):
+        if dbinfo.dir in self.started_services:
+            return
+
+        name = f"fuseki-{dbinfo.dir.name}"
+        port = self.get_next_available_port()
+        (subprocess.check_output if self.capture_output else subprocess.check_call)(
+            self.get_start_command(args).format(
+                ID=name, PORT=str(port), DB_DIR=dbinfo.dir
+            ),
+            shell=True,
+        )
+        self.started_services[dbinfo.dir] = (name, port)
+        assert dbinfo.hostname is None
+        dbinfo.hostname = f"{self.hostname}:{port}"
+        self.logger.debug(
+            "Started Fuseki service at {} serving {}", dbinfo.hostname, dbinfo.dir.name
+        )
+
+    def shutdown_fuseki(self, args: FusekiDataLoaderServiceInvokeArgs, dbinfo: DBInfo):
+        if len(self.started_services) == 0:
+            return
+
+        # we should only have one service running at a time
+        assert len(self.started_services) == 1
+        assert dbinfo.dir in self.started_services
+        (subprocess.check_output if self.capture_output else subprocess.check_call)(
+            self.get_stop_command(args).format(ID=self.started_services[dbinfo.dir][0]),
+            shell=True,
+        )
+
+        self.logger.debug(
+            "Stopped Fuseki service at {}, which serves {}",
+            dbinfo.hostname,
+            dbinfo.dir.name,
+        )
+        self.started_services.pop(dbinfo.dir)
+        dbinfo.hostname = None
+
+    def load_files(
+        self,
+        args: FusekiDataLoaderServiceInvokeArgs,
+        dbinfo: DBInfo,
+        is_replaceable: bool,
+        files: list[InputFile],
+    ):
+        # we have option to either update the files on disk directly or have to load them via Fuseki service
+        update_graph = False
+        if is_replaceable:
+            assert len(files) == 1
+            file = files[0]
+            if file.get_path_ident() in self.cache.db:
+                # the file has been loaded before --> we need to remove the URIs first
+                update_graph = True
+
+        if update_graph:
+            # we need Fuseki service to remove the URIs first
+            self.start_fuseki(args, dbinfo)
+            assert dbinfo.hostname is not None
+            for file in files:
+                if file.get_path_ident() in self.cache.db:
+                    self.remove_file(dbinfo.hostname, args["endpoint"], file.path)
+
+        if dbinfo.has_running_service():
+            # we cannot load the data directly to the database because the service is running
+            # we need to upload the data to the endpoint.
+            assert dbinfo.hostname is not None
+            for file in files:
+                self.upload_file(dbinfo.hostname, args["endpoint"], file.path)
+        else:
+            basedir = args["load"]["basedir"]
+            if not isinstance(basedir, str):
+                basedir = basedir.get_path()
+            (subprocess.check_output if self.capture_output else subprocess.check_call)(
+                self.get_load_command(args).format(
+                    DB_DIR=dbinfo.dir,
+                    FILES=" ".join(
+                        [str(file.path.relative_to(basedir)) for file in files]
+                    ),
+                ),
+                shell=True,
+            )
+
+    def upload_file(self, hostname: str, endpoint: FusekiEndpoint, file: Path):
         resp = requests.post(
-            url=endpoint["update"],
+            hostname + endpoint["gsp"],
+            data=file.read_text(),
+            headers={"Content-Type": f"text/{self.detect_format(file)}; charset=utf-8"},
+            verify=False,
+        )
+        assert resp.status_code == 200, (resp.status_code, resp.text)
+
+    def remove_file(self, hostname: str, endpoint: FusekiEndpoint, file: Path):
+        g = Graph()
+        g.parse(file, format=self.detect_format(file))
+        resp = requests.post(
+            url=hostname + endpoint["update"],
             data={
                 "update": "DELETE { ?s ?p ?o } WHERE { ?s ?p ?o VALUES ?s { %s } }"
-                % " ".join(f"<{uri}>" for uri in uris)
+                % " ".join(f"<{str(s)}>" for s in g.subjects())
             },
             headers={
                 "Content-Type": "application/x-www-form-urlencoded",
@@ -255,15 +393,42 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
         )
         assert resp.status_code == 200, (resp.status_code, resp.text)
 
-    def upload_file(self, endpoint: FusekiEndpoint, file: Path):
-        resp = requests.post(
-            endpoint["gsp"],
-            data=file.read_text(),
-            headers={"Content-Type": f"text/{self.detect_format(file)}; charset=utf-8"},
-            verify=False,
-        )
-        assert resp.status_code == 200, (resp.status_code, resp.text)
-
     def detect_format(self, file: Path):
         assert file.suffix == ".ttl", f"Only turtle files (.ttl) are supported: {file}"
         return "turtle"
+
+    def get_load_command(self, args: FusekiDataLoaderServiceInvokeArgs):
+        cmd = args["load"]["command"]
+        if isinstance(cmd, RelPathRefStr):
+            cmd = cmd.deref()
+            # trick to avoid calling deref() again
+            args["load"]["command"] = cmd
+        return cmd
+
+    def get_start_command(self, args: FusekiDataLoaderServiceInvokeArgs):
+        cmd = args["endpoint"]["start"]
+        if isinstance(cmd, RelPathRefStr):
+            cmd = cmd.deref()
+            # trick to avoid calling deref() again
+            args["endpoint"]["start"] = cmd
+        return cmd
+
+    def get_stop_command(self, args: FusekiDataLoaderServiceInvokeArgs):
+        cmd = args["endpoint"]["stop"]
+        if isinstance(cmd, RelPathRefStr):
+            cmd = cmd.deref()
+            # trick to avoid calling deref() again
+            args["endpoint"]["stop"] = cmd
+        return cmd
+
+    def get_next_available_port(self):
+        for port in range(3031, 3031 + 100):
+            conn = httplib.HTTPConnection(f"{self.hostname}:{port}", timeout=1)
+            try:
+                conn.request("HEAD", "/")
+            except Exception:
+                return port
+            finally:
+                conn.close()
+
+        raise Exception("No available port between [3031, 3131)")

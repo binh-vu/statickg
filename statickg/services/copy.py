@@ -4,7 +4,7 @@ import shutil
 from typing import TypedDict
 
 from statickg.helper import logger_helper, remove_deleted_files
-from statickg.models.prelude import ETLFileTracker, RelPath, Repository
+from statickg.models.prelude import ETLOutput, RelPath, Repository
 from statickg.services.interface import BaseFileService
 
 
@@ -20,7 +20,7 @@ class CopyService(BaseFileService[CopyServiceInvokeArgs]):
         self,
         repo: Repository,
         args: CopyServiceInvokeArgs,
-        tracker: ETLFileTracker,
+        tracker: ETLOutput,
     ):
         infiles = self.list_files(
             repo,
@@ -33,7 +33,7 @@ class CopyService(BaseFileService[CopyServiceInvokeArgs]):
         outdir.mkdir(parents=True, exist_ok=True)
 
         # detect and remove deleted files
-        remove_deleted_files(infiles, args["output"], tracker)
+        remove_deleted_files(infiles, args["output"])
 
         # now loop through the input files and copy them
         with logger_helper(

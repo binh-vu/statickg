@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unrelease] - 2024-06-09
+
+### Fixed
+
+- Fix Fuseki loading issues
+
+### Changed
+
+- Remove tracker & store outputs of previous tasks.
+
 ## [1.2.2] - 2024-06-09
 
 ### Added

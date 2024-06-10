@@ -11,7 +11,7 @@ from statickg.helper import import_attr, json_ser
 from statickg.models.prelude import (
     BaseType,
     ETLConfig,
-    ETLFileTracker,
+    ETLOutput,
     GitRepository,
     Repository,
 )
@@ -66,9 +66,10 @@ class ETLPipelineRunner:
         return ETLPipelineRunner(etl, workdir, repo)
 
     def __call__(self):
-        tracker = ETLFileTracker()
+        output = ETLOutput()
         for task in self.etl.pipeline:
-            self.services[task.service](self.repo, task.args, tracker)
+            service = self.services[task.service]
+            output.track(task.service, service(self.repo, task.args, output))
 
     def prepare_work_dir(self):
         """Prepare the working directory for the ETL process"""

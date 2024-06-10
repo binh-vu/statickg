@@ -12,7 +12,7 @@ import orjson
 from hugedict.sqlite import SqliteDict
 from loguru import logger
 
-from statickg.models.etl import Change, ETLFileTracker
+from statickg.models.etl import Change, ETLOutput
 from statickg.models.input_file import InputFile, ProcessStatus, RelPath, RelPathRefStr
 
 TYPE_ALIASES = {"typing.List": "list", "typing.Dict": "dict", "typing.Set": "set"}
@@ -109,20 +109,10 @@ def json_ser_default_object(obj: Any):
     raise TypeError
 
 
-def remove_deleted_files(
-    newfiles: list[InputFile], outdir: RelPath, tracker: ETLFileTracker
-):
+def remove_deleted_files(newfiles: list[InputFile], outdir: RelPath):
     new_filenames = {file.path.stem for file in newfiles}
     for file in outdir.get_path().iterdir():
         if file.is_file() and file.stem not in new_filenames:
-            tracker.track(
-                RelPath(
-                    basetype=outdir.basetype,
-                    basepath=outdir.basepath,
-                    relpath=str(file.relative_to(outdir.basepath)),
-                ).get_ident(),
-                Change.REMOVE,
-            )
             file.unlink()
             logger.info("Remove deleted file {}", file)
 

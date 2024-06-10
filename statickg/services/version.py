@@ -11,7 +11,7 @@ from tqdm import tqdm
 from statickg.helper import get_latest_version, logger_helper
 from statickg.models.prelude import (
     Change,
-    ETLFileTracker,
+    ETLOutput,
     ProcessStatus,
     RelPath,
     Repository,
@@ -32,7 +32,7 @@ class VersionService(BaseFileService[VersionServiceInvokeArgs]):
     """A service that can generate version of knowledge graph"""
 
     def forward(
-        self, repo: Repository, args: VersionServiceInvokeArgs, tracker: ETLFileTracker
+        self, repo: Repository, args: VersionServiceInvokeArgs, tracker: ETLOutput
     ):
         """Generate version of knowledge graph"""
         g = Graph()

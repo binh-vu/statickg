@@ -44,11 +44,13 @@ class Change(str, Enum):
 
 
 @dataclass
-class ETLFileTracker:
-    file_changes: dict[str, Change] = field(default_factory=dict)
+class ETLOutput:
+    output: dict[str, list] = field(default_factory=dict)
 
-    def track(self, file: str, change: Change):
-        self.file_changes[file] = change
+    def track(self, service: str, output: Any):
+        if service not in self.output:
+            self.output[service] = []
+        self.output[service].append(output)
 
 
 @dataclass

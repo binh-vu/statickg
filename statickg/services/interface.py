@@ -9,13 +9,7 @@ from loguru import logger
 from slugify import slugify
 
 from statickg.helper import CacheProcess, get_classpath
-from statickg.models.prelude import (
-    BaseType,
-    ETLFileTracker,
-    InputFile,
-    RelPath,
-    Repository,
-)
+from statickg.models.prelude import BaseType, ETLOutput, InputFile, RelPath, Repository
 
 A = TypeVar("A")
 
@@ -30,15 +24,15 @@ class BaseService(Generic[A]):
     ):
         raise NotImplementedError()
 
-    def __call__(self, repo: Repository, args: A | list[A], tracker: ETLFileTracker):
+    def __call__(self, repo: Repository, args: A | list[A], output: ETLOutput):
         if isinstance(args, list):
             outputs = []
             for arg in args:
-                outputs.append(self.forward(repo, arg, tracker))
+                outputs.append(self.forward(repo, arg, output))
             return outputs
-        return self.forward(repo, args, tracker)
+        return self.forward(repo, args, output)
 
-    def forward(self, repo: Repository, args: A, tracker: ETLFileTracker):
+    def forward(self, repo: Repository, args: A, output: ETLOutput):
         raise NotImplementedError()
 
 
