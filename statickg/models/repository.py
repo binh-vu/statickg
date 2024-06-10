@@ -44,10 +44,8 @@ class GitRepository(Repository):
         if output.decode().strip() != "HEAD":
             # we are in a branch and we can fetch the latest changes -- otherwise, we are in a detached HEAD state
             # and we cannot fetch the latest changes (doing nothing)
+            # we should rely on commit id instead of results of git pull
             output = subprocess.check_output(["git", "pull"], cwd=self.repo)
-            if output != b"Already up to date.\n":
-                self.current_commit = self.get_current_commit()
-                return True
 
         current_commit_id = self.get_current_commit()
         if current_commit_id != self.current_commit:

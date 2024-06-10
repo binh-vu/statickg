@@ -32,9 +32,6 @@ def deploy_loop(
     refresh: Annotated[
         float, typer.Option(help="Data refresh interval in seconds")
     ] = 1.0,
-    rebuild: Annotated[
-        bool, typer.Option(help="Force deploy the pipeline for the first time")
-    ] = False,
     loop: Annotated[
         bool, typer.Option("--loop/--no-loop", help="Continuously monitor for updates")
     ] = True,
@@ -52,7 +49,7 @@ def deploy_loop(
     # run a loop to continously deploy the pipeline.
     is_waiting = False
 
-    if repo.fetch() or rebuild:
+    if repo.fetch():
         kgbuilder()
 
     while loop:

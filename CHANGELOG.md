@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.2] - 2024-06-09
+
+### Added
+
+- Improve change detection in Git repository.
+
 ## [1.2.1] - 2024-06-09
 
 ### Added
