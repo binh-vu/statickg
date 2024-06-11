@@ -68,8 +68,10 @@ class ETLPipelineRunner:
     def __call__(self):
         output = ETLOutput()
         for task in self.etl.pipeline:
-            service = self.services[task.service]
-            output.track(task.service, service(self.repo, task.args, output))
+            output.track(
+                self.etl.services[task.service].classpath,
+                self.services[task.service](self.repo, task.args, output),
+            )
 
     def prepare_work_dir(self):
         """Prepare the working directory for the ETL process"""

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import glob
+import http.client as httplib
 import importlib
 import re
 from contextlib import contextmanager
@@ -192,3 +193,19 @@ def logger_helper(alogger, verbose: int, extra_msg: str = ""):
 
     assert verbose >= 3
     return  # print notthing at the end
+
+
+def find_available_port(hostname: str, start: int, end: Optional[int] = None) -> int:
+    if end is None:
+        end = start + 100
+
+    for port in range(start, end):
+        conn = httplib.HTTPConnection(f"{hostname}:{port}", timeout=1)
+        try:
+            conn.request("HEAD", "/")
+        except Exception:
+            return port
+        finally:
+            conn.close()
+
+    raise Exception(f"No available port between [{start}, {end})")

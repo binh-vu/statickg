@@ -16,7 +16,7 @@ import requests
 from rdflib import Graph
 from tqdm import tqdm
 
-from statickg.helper import get_latest_version, logger_helper
+from statickg.helper import find_available_port, get_latest_version, logger_helper
 from statickg.models.prelude import (
     Change,
     ETLOutput,
@@ -289,7 +289,7 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
             return
 
         name = f"fuseki-{dbinfo.dir.name}"
-        port = self.get_next_available_port()
+        port = find_available_port(self.hostname, 3031)
         (subprocess.check_output if self.capture_output else subprocess.check_call)(
             self.get_start_command(args).format(
                 ID=name, PORT=str(port), DB_DIR=dbinfo.dir
@@ -420,15 +420,3 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
             # trick to avoid calling deref() again
             args["endpoint"]["stop"] = cmd
         return cmd
-
-    def get_next_available_port(self):
-        for port in range(3031, 3031 + 100):
-            conn = httplib.HTTPConnection(f"{self.hostname}:{port}", timeout=1)
-            try:
-                conn.request("HEAD", "/")
-            except Exception:
-                return port
-            finally:
-                conn.close()
-
-        raise Exception("No available port between [3031, 3131)")

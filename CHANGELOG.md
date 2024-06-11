@@ -5,6 +5,7 @@
 ### Fixed
 
 - Fix Fuseki loading issues
+- Fix pipeline storing services' output
 
 ### Changed
 
