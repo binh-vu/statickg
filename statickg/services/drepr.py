@@ -76,7 +76,13 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
                 outfile=outfile,
             ) as notfound:
                 if notfound:
-                    convert(repr=filepath, resources={}, progfile=outfile)
+                    try:
+                        convert(repr=filepath, resources={}, progfile=outfile)
+                    except:
+                        self.logger.error(
+                            "Error when generating program {}", file_ident
+                        )
+                        raise
                     self.logger.info("generate program {}", file_ident)
                 else:
                     self.logger.info("reuse program {}", file_ident)
