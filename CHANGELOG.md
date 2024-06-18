@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.3] - 2024-06-18
+
+### Fixed
+
+- Fix bug in `find_available_port`
+
 ## [1.3.2] - 2024-06-18
 
 ### Fixed

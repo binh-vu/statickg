@@ -220,6 +220,9 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
                     # clean up the directory
                     shutil.rmtree(dbinfo.dir, ignore_errors=True)
 
+        self.logger.info(
+            "Loading data to {} (incremental = {})", dbinfo.dir, can_load_incremental
+        )
         # --------------------------------------------------------------
         # now loop through the input files and invoke them.
         readable_ptns = self.get_readable_patterns(args["input"])

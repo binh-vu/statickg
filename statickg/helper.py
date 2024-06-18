@@ -4,6 +4,7 @@ import glob
 import http.client as httplib
 import importlib
 import re
+import socket
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
@@ -199,13 +200,17 @@ def find_available_port(hostname: str, start: int, end: Optional[int] = None) ->
     if end is None:
         end = start + 100
 
+    if hostname.startswith("http://"):
+        hostname = hostname[7:]
+    elif hostname.startswith("https://"):
+        hostname = hostname[8:]
+    else:
+        raise Exception("Invalid hostname")
+
     for port in range(start, end):
-        conn = httplib.HTTPConnection(f"{hostname}:{port}", timeout=1)
-        try:
-            conn.request("HEAD", "/")
-        except Exception:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex((hostname, port)) == 0:
+                continue
             return port
-        finally:
-            conn.close()
 
     raise Exception(f"No available port between [{start}, {end})")
