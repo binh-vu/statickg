@@ -220,6 +220,7 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
                     # clean up the directory
                     shutil.rmtree(dbinfo.dir, ignore_errors=True)
 
+        dbinfo.dir.mkdir(parents=True, exist_ok=True)
         self.logger.info(
             "Loading data to {} (incremental = {})", dbinfo.dir, can_load_incremental
         )

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.5] - 2024-06-18
+
+### Fixed
+
+- Fuseki service should create directory before calling load command
+
 ## [1.3.3] - 2024-06-18
 
 ### Fixed
