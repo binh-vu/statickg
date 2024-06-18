@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "statickg"
-version = "1.3.3"
+version = "1.3.4"
 description = "Tools for creating & running knowledge graphs from files"
 authors = ["Binh Vu <bvu687@gmail.com>"]
 license = "MIT"
@@ -8,7 +8,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-drepr-v2 = "^1.3.13"
+drepr-v2 = "^1.3.14"
 orjson = "^3.10.3"
 hugedict = "^2.13.4"
 typer = "^0.12.3"
