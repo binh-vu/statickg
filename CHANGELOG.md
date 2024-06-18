@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.2] - 2024-06-18
+
+### Fixed
+
+- If fuseki fails to start, it automatically uses the stop command to clean up previous artifacts and try to start again.
+
+### Changed
+
+- Better error message telling what files was failed for D-REPR service
+
 ## [1.3.0] - 2024-06-09
 
 ### Fixed

@@ -143,7 +143,11 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
                             infile_ident,
                             Change.MODIFY if outfile.exists() else Change.ADD,
                         )
-                        output = program(infile.path)
+                        try:
+                            output = program(infile.path)
+                        except:
+                            self.logger.error("Error when processing {}", infile_ident)
+                            raise
                         outfile.write_text(output)
 
                     log(notfound, infile_ident)
