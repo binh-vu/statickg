@@ -70,6 +70,7 @@ class ETLPipelineRunner:
         for task in self.etl.pipeline:
             output.track(
                 self.etl.services[task.service].classpath,
+                task.args,
                 self.services[task.service](self.repo, task.args, output),
             )
 

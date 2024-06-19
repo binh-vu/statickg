@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0] - 2024-06-18
+
+### Added
+
+- Added utility functions to check/wait for a port to be available.
+
 ## [1.3.5] - 2024-06-18
 
 ### Fixed

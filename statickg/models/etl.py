@@ -45,11 +45,15 @@ class Change(str, Enum):
 
 @dataclass
 class ETLOutput:
+    invoke_args: dict[str, list] = field(default_factory=dict)
     output: dict[str, list] = field(default_factory=dict)
 
-    def track(self, service: str, output: Any):
+    def track(self, service: str, args: Any, output: Any):
+        if service not in self.invoke_args:
+            self.invoke_args[service] = []
         if service not in self.output:
             self.output[service] = []
+        self.invoke_args[service].append(args)
         self.output[service].append(output)
 
 

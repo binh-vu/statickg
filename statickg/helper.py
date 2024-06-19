@@ -5,6 +5,7 @@ import http.client as httplib
 import importlib
 import re
 import socket
+import time
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
@@ -214,3 +215,34 @@ def find_available_port(hostname: str, start: int, end: Optional[int] = None) ->
             return port
 
     raise Exception(f"No available port between [{start}, {end})")
+
+
+def wait_till_port_available(hostname: str, port: int, timeout: int = 10):
+    """Wait for the port to be available. Return true if the port is available within the timeout. Otherwise false"""
+    if hostname.startswith("http://"):
+        hostname = hostname[7:]
+    elif hostname.startswith("https://"):
+        hostname = hostname[8:]
+    else:
+        raise Exception("Invalid hostname")
+
+    poll_time = 0.1
+    for i in range(timeout * int(1 / poll_time)):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex((hostname, port)) == 0:
+                time.sleep(poll_time)
+            else:
+                return True
+    return False
+
+
+def is_port_available(hostname: str, port: int):
+    if hostname.startswith("http://"):
+        hostname = hostname[7:]
+    elif hostname.startswith("https://"):
+        hostname = hostname[8:]
+    else:
+        raise Exception("Invalid hostname")
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return not (s.connect_ex((hostname, port)) == 0)
