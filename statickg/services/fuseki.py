@@ -1,24 +1,19 @@
 from __future__ import annotations
 
-import http.client as httplib
 import re
 import shutil
 import subprocess
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Mapping, NotRequired, Optional, Sequence, TypedDict
-from urllib import request
-from uuid import uuid4
+from typing import Mapping, NotRequired, Optional, TypedDict
 
-import orjson
 import requests
 from rdflib import Graph
 from tqdm import tqdm
 
 from statickg.helper import find_available_port, get_latest_version, logger_helper
 from statickg.models.prelude import (
-    Change,
     ETLOutput,
     InputFile,
     ProcessStatus,
@@ -28,7 +23,6 @@ from statickg.models.prelude import (
     Repository,
 )
 from statickg.services.interface import BaseFileService, BaseService
-from statickg.services.version import VersionService, VersionServiceInvokeArgs
 
 
 class FusekiEndpoint(TypedDict):

@@ -1,4 +1,4 @@
-from statickg.models.etl import Change, ETLConfig, ETLOutput, ETLTask, Service
+from statickg.models.etl import ETLConfig, ETLOutput, ETLTask, Service
 from statickg.models.input_file import (
     BaseType,
     InputFile,
@@ -13,7 +13,6 @@ __all__ = [
     "ETLConfig",
     "ETLTask",
     "ETLOutput",
-    "Change",
     "Service",
     "InputFile",
     "ProcessStatus",

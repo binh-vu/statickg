@@ -11,7 +11,7 @@ from drepr.main import convert
 from tqdm import tqdm
 
 from statickg.helper import import_func, logger_helper, remove_deleted_files
-from statickg.models.prelude import Change, ETLOutput, RelPath, Repository
+from statickg.models.prelude import ETLOutput, RelPath, Repository
 from statickg.services.interface import BaseFileService, BaseService
 
 
@@ -139,10 +139,6 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
                     outfile=outfile,
                 ) as notfound:
                     if notfound:
-                        tracker.track(
-                            infile_ident,
-                            Change.MODIFY if outfile.exists() else Change.ADD,
-                        )
                         try:
                             output = program(infile.path)
                         except:

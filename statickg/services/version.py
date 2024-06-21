@@ -1,22 +1,11 @@
 from __future__ import annotations
 
-import shutil
-import subprocess
-from pathlib import Path
-from typing import Mapping, NotRequired, Optional, TypedDict
+from typing import NotRequired, TypedDict
 
 from rdflib import DCTERMS, RDF, XSD, Graph, Literal, URIRef
-from tqdm import tqdm
 
-from statickg.helper import get_latest_version, logger_helper
-from statickg.models.prelude import (
-    Change,
-    ETLOutput,
-    ProcessStatus,
-    RelPath,
-    Repository,
-)
-from statickg.services.interface import BaseFileService, BaseService
+from statickg.models.prelude import ETLOutput, RelPath, Repository
+from statickg.services.interface import BaseFileService
 
 
 class VersionServiceConstructArgs(TypedDict): ...

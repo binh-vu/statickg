@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1] - 2024-06-21
+
+### Fixed
+
+- Fix D-REPR service incorrectly using ETLOutput
+
 ## [1.4.0] - 2024-06-18
 
 ### Added

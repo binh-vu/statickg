@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import glob
-import http.client as httplib
 import importlib
 import re
 import socket
 import time
 from contextlib import contextmanager
-from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional, Type
 
@@ -15,7 +13,6 @@ import orjson
 from hugedict.sqlite import SqliteDict
 from loguru import logger
 
-from statickg.models.etl import Change, ETLOutput
 from statickg.models.input_file import InputFile, ProcessStatus, RelPath, RelPathRefStr
 
 TYPE_ALIASES = {"typing.List": "list", "typing.Dict": "dict", "typing.Set": "set"}

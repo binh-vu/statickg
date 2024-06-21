@@ -37,12 +37,6 @@ class ETLTask:
         }
 
 
-class Change(str, Enum):
-    ADD = "add"
-    REMOVE = "remove"
-    MODIFY = "modify"
-
-
 @dataclass
 class ETLOutput:
     invoke_args: dict[str, list] = field(default_factory=dict)
