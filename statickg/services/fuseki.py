@@ -86,6 +86,24 @@ class DBInfo:
             dir=self.dir.parent / f"version-{self.version + 1:03d}",
         )
 
+    def get_older_versions(
+        self, find_hostname_by_id: Optional[str] = None
+    ) -> list[DBInfo]:
+        """Get older versions of the database"""
+        versions = []
+        for i in range(1, self.version):
+            dir = self.dir.parent / f"version-{i:03d}"
+            if dir.exists():
+                info = DBInfo(
+                    key=self.key,
+                    version=i,
+                    dir=dir,
+                )
+                if find_hostname_by_id is not None:
+                    info._update_hostname(find_hostname_by_id)
+                versions.append(info)
+        return versions
+
     @staticmethod
     def get_current_dbinfo(args: FusekiDataLoaderServiceInvokeArgs):
         dbdir = args["load"]["dbdir"]
@@ -96,17 +114,17 @@ class DBInfo:
 
         dbversion = get_latest_version(dbdir / "version-*")
         dbdir = dbdir / f"version-{dbversion:03d}"
-
-        dbinfo = DBInfo(
+        return DBInfo(
             key=f"cmd:{args['load']['command']}|version:{dbversion}",
             version=dbversion,
             dir=dbdir,
-        )
+        )._update_hostname(args["endpoint"]["find_by_id"])
 
-        # try to find the hostname
+    def _update_hostname(self, find_by_id: str):
+        assert self.hostname is None
         output = (
             subprocess.check_output(
-                args["endpoint"]["find_by_id"].format(ID=f"fuseki-{dbdir.name}"),
+                find_by_id.format(ID=f"fuseki-{self.dir.name}"),
                 shell=True,
             )
             .decode()
@@ -124,8 +142,8 @@ class DBInfo:
             else:
                 assert output.isdigit(), output
                 hostname = f"http://localhost:{output}"
-            dbinfo.hostname = hostname
-        return dbinfo
+            self.hostname = hostname
+        return self
 
 
 class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]):

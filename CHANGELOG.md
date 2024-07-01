@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0] - 2024-07-01
+
+### Added
+
+- Function to find old versions of a database
+
 ## [1.4.1] - 2024-06-21
 
 ### Fixed
