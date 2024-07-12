@@ -129,7 +129,7 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
         ) as log:
             if not self.parallel:
                 for infile in tqdm(
-                    infiles, desc=readable_ptns, disable=self.verbose >= 2
+                    infiles, desc=readable_ptns, disable=not (self.verbose >= 2)
                 ):
                     outfile = outdir / f"{infile.path.stem}.{self.extension}"
 
@@ -195,7 +195,10 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
                 )
                 assert it is not None
                 for infile_ident, cache_key in tqdm(
-                    it, total=len(jobs), desc=readable_ptns, disable=self.verbose >= 2
+                    it,
+                    total=len(jobs),
+                    desc=readable_ptns,
+                    disable=not (self.verbose >= 2),
                 ):
                     # for infile_ident, infile_path, outfile, program, cache_key in jobs:
                     self.cache.mark_compute_success(infile_ident, cache_key)
