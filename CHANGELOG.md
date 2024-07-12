@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.0] - 2024-07-12
+
+### Added
+
+- Parallel execution for D-REPR service by default (can be disabled)
+
+### Changed
+
+- Update D-REPR library for better performance
+
 ## [1.5.0] - 2024-07-01
 
 ### Added

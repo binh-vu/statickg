@@ -128,16 +128,24 @@ class CacheProcess:
 
     @contextmanager
     def auto(self, filepath: str, key: str, outfile: Optional[Path] = None):
+        notfound = not self.has_cache(filepath, key, outfile)
+
+        yield notfound
+
+        if notfound:
+            self.mark_compute_success(filepath, key)
+
+    def has_cache(self, filepath: str, key: str, outfile: Optional[Path] = None):
         notfound = True
         if (outfile is None or outfile.exists()) and filepath in self.db:
             status = self.db[filepath]
             if status.key == key and status.is_success:
                 notfound = False
 
-        yield notfound
+        return not notfound
 
-        if notfound:
-            self.db[filepath] = ProcessStatus(key, is_success=True)
+    def mark_compute_success(self, filepath: str, key: str):
+        self.db[filepath] = ProcessStatus(key, is_success=True)
 
 
 @contextmanager

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable, Mapping, NotRequired, TypedDict
 
 from drepr.main import convert
+from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from statickg.helper import import_func, logger_helper, remove_deleted_files
@@ -19,6 +20,7 @@ class DReprServiceConstructArgs(TypedDict):
     path: RelPath | list[RelPath]
     format: str
     verbose: NotRequired[int]
+    parallel: NotRequired[bool]
 
 
 class DReprServiceInvokeArgs(TypedDict):
@@ -54,6 +56,8 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
         assert self.format in {"turtle"}, self.format
         self.extension = {"turtle": "ttl"}[self.format]
         self.drepr_version = version("drepr-v2").strip()
+        self.parallel = args.get("parallel", True)
+        self.parallel_executor = Parallel(n_jobs=-1, return_as="generator_unordered")
 
         if isinstance(args["path"], list):
             files = args["path"]
@@ -123,30 +127,79 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
             self.verbose,
             extra_msg=f"matching {readable_ptns}",
         ) as log:
-            for infile in tqdm(infiles, desc=readable_ptns, disable=self.verbose >= 2):
-                outfile = outdir / f"{infile.path.stem}.{self.extension}"
+            if not self.parallel:
+                for infile in tqdm(
+                    infiles, desc=readable_ptns, disable=self.verbose >= 2
+                ):
+                    outfile = outdir / f"{infile.path.stem}.{self.extension}"
 
-                if len(self.programs) == 1:
-                    assert first_proram is not None
-                    programkey, program = first_proram
-                else:
-                    programkey, program = self.programs[infile.path.stem]
+                    if len(self.programs) == 1:
+                        assert first_proram is not None
+                        programkey, program = first_proram
+                    else:
+                        programkey, program = self.programs[infile.path.stem]
 
-                infile_ident = infile.get_path_ident()
-                with self.cache.auto(
-                    filepath=infile_ident,
-                    key=programkey + ":" + infile.key,
-                    outfile=outfile,
-                ) as notfound:
-                    if notfound:
-                        try:
-                            output = program(infile.path)
-                        except:
-                            self.logger.error("Error when processing {}", infile_ident)
-                            raise
-                        outfile.write_text(output)
+                    infile_ident = infile.get_path_ident()
+                    with self.cache.auto(
+                        filepath=infile_ident,
+                        key=programkey + ":" + infile.key,
+                        outfile=outfile,
+                    ) as notfound:
+                        if notfound:
+                            try:
+                                output = program(infile.path)
+                            except:
+                                self.logger.error(
+                                    "Error when processing {}", infile_ident
+                                )
+                                raise
+                            outfile.write_text(output)
 
-                    log(notfound, infile_ident)
+                        log(notfound, infile_ident)
+            else:
+                jobs = []
+                for infile in infiles:
+                    outfile = outdir / f"{infile.path.stem}.{self.extension}"
+                    if len(self.programs) == 1:
+                        assert first_proram is not None
+                        programkey, program = first_proram
+                    else:
+                        programkey, program = self.programs[infile.path.stem]
+
+                    infile_ident = infile.get_path_ident()
+                    cache_key = programkey + ":" + infile.key
+
+                    if self.cache.has_cache(infile_ident, cache_key, outfile):
+                        log(False, infile_ident)
+                        continue
+
+                    jobs.append(
+                        (infile_ident, infile.path, outfile, program, cache_key)
+                    )
+
+                def exec_job(infile_ident, infile_path, cache_key, outfile, program):
+                    try:
+                        output = program(infile_path)
+                    except Exception as e:
+                        raise Exception(f"Error when processing {infile_ident}") from e
+
+                    outfile.write_text(output)
+                    return infile_ident, cache_key
+
+                # execute the jobs on parallel
+                it = self.parallel_executor(
+                    delayed(exec_job)(
+                        infile_ident, infile_path, cache_key, outfile, program
+                    )
+                    for infile_ident, infile_path, outfile, program, cache_key in jobs
+                )
+                assert it is not None
+                for infile_ident, cache_key in tqdm(
+                    it, total=len(jobs), desc=readable_ptns, disable=self.verbose >= 2
+                ):
+                    # for infile_ident, infile_path, outfile, program, cache_key in jobs:
+                    self.cache.mark_compute_success(infile_ident, cache_key)
+                    log(True, infile_ident)
 
     def setup(self, workdir: Path):
         pkgname = "gen_programs"
