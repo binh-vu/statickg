@@ -1,10 +1,10 @@
 # Changelog
 
-## [1.6.1] - 2024-07-12
+## [1.6.2] - 2024-07-12
 
 ### Fixed
 
-- Fix D-REPR service incorrectly displaying progress bar
+- Fix incremental load
 
 ## [1.6.0] - 2024-07-12
 

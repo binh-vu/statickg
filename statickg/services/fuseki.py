@@ -197,8 +197,13 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
         dbinfo = DBInfo.get_current_dbinfo(args)
         can_load_incremental = dbinfo.is_valid()
         if can_load_incremental:
-            if len(infiles) + len(replaceable_infiles) != len(self.cache.db):
-                # delete files prevent incremental loading
+            prev_infile_idents = set(self.cache.db.keys())
+            current_infile_idents = {file.get_path_ident() for file in infiles}.union(
+                (file.get_path_ident() for file in replaceable_infiles)
+            )
+
+            if prev_infile_idents.difference(current_infile_idents):
+                # some files are removed
                 can_load_incremental = False
             else:
                 for infile in infiles:
@@ -213,10 +218,7 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
                             # the key is different --> the file is modified
                             can_load_incremental = False
                             break
-                    else:
-                        can_load_incremental = False
 
-        # --------------------------------------------------------------
         # if we cannot load the data incrementally, we need to reload the data from scratch
         if not can_load_incremental:
             # invalidate the cache.
