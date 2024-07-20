@@ -70,11 +70,11 @@ class BaseFileService(BaseService[A]):
         for pattern in patterns if isinstance(patterns, list) else [patterns]:
             if pattern.basetype == BaseType.REPO:
                 files.extend(repo.glob(pattern.relpath))
-            elif pattern.basetype == BaseType.DATA_DIR:
+            elif pattern.basetype in [BaseType.DATA_DIR, BaseType.CFG_DIR]:
                 files.extend(
                     [
                         InputFile(
-                            basetype=BaseType.DATA_DIR,
+                            basetype=pattern.basetype,
                             key=(
                                 hashlib.sha256(file.read_bytes()).hexdigest()
                                 if compute_missing_file_key

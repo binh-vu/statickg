@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.4] - 2024-07-19
+
+### Fixed
+
+- Fix not handling CFG_DIR basepath
+
 ## [1.6.2] - 2024-07-12
 
 ### Fixed
