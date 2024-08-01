@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from functools import cached_property
 from pathlib import Path
 from typing import TypeAlias, Union
 
@@ -50,6 +51,14 @@ class RelPath:
     basepath: Path
     relpath: str
 
+    @cached_property
+    def suffix(self):
+        return self.get_path().suffix
+
+    @cached_property
+    def stem(self):
+        return self.get_path().stem
+
     def get_path(self):
         if self.relpath != "":
             return self.basepath / self.relpath
@@ -57,6 +66,18 @@ class RelPath:
 
     def get_ident(self):
         return get_ident(self.basetype, self.relpath)
+
+    def __truediv__(self, other: str):
+        return RelPath(self.basetype, self.basepath, str(Path(self.relpath) / other))
+
+    def iterdir(self):
+        return (
+            RelPath(self.basetype, self.basepath, str(p.relative_to(self.basepath)))
+            for p in self.get_path().iterdir()
+        )
+
+    def __str__(self):
+        return self.get_ident()
 
 
 @dataclass

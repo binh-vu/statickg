@@ -5,7 +5,7 @@ import importlib
 import sys
 from importlib.metadata import version
 from pathlib import Path
-from typing import Callable, Mapping, NotRequired, TypedDict
+from typing import Callable, Iterable, Mapping, NotRequired, TypeAlias, TypedDict, cast
 
 from drepr.main import convert
 from joblib import Parallel, delayed
@@ -28,6 +28,9 @@ class DReprServiceInvokeArgs(TypedDict):
     output: RelPath
     optional: NotRequired[bool]
     compute_missing_file_key: NotRequired[bool]
+
+
+FORWARD_EXEC_JOB_RETURN_TYPE: TypeAlias = tuple[str, str]
 
 
 class DReprService(BaseFileService[DReprServiceInvokeArgs]):
@@ -179,7 +182,9 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
                         (infile_ident, infile.path, outfile, program, cache_key)
                     )
 
-                def exec_job(infile_ident, infile_path, cache_key, outfile, program):
+                def exec_job(
+                    infile_ident, infile_path, cache_key, outfile, program
+                ) -> FORWARD_EXEC_JOB_RETURN_TYPE:
                     try:
                         output = program(infile_path)
                     except Exception as e:
@@ -196,8 +201,9 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
                     for infile_ident, infile_path, outfile, program, cache_key in jobs
                 )
                 assert it is not None
+
                 for infile_ident, cache_key in tqdm(
-                    it,
+                    cast(Iterable[FORWARD_EXEC_JOB_RETURN_TYPE], it),
                     total=len(jobs),
                     desc=readable_ptns,
                     disable=self.verbose != 1,

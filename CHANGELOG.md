@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0] - 2024-07-31
+
+### Added
+
+- Add helper functions to RelPath
+
 ## [1.6.4] - 2024-07-19
 
 ### Fixed
