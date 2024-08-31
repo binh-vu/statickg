@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import subprocess
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, TypeAlias
+
+from loguru import logger
 
 from statickg.models.input_file import BaseType, InputFile
 
@@ -35,7 +38,7 @@ class GitRepository(Repository):
         self.commit2files = {}
         self.current_commit = None
 
-    def fetch(self) -> bool:
+    def fetch(self, max_retries: int = 5) -> bool:
         """Fetch new data. Return True if there is new data"""
         # fetch from the remote repository
         output = subprocess.check_output(
@@ -45,7 +48,18 @@ class GitRepository(Repository):
             # we are in a branch and we can fetch the latest changes -- otherwise, we are in a detached HEAD state
             # and we cannot fetch the latest changes (doing nothing)
             # we should rely on commit id instead of results of git pull
-            output = subprocess.check_output(["git", "pull"], cwd=self.repo)
+            for i in range(max_retries):
+                try:
+                    output = subprocess.check_output(["git", "pull"], cwd=self.repo)
+                    break
+                except subprocess.CalledProcessError as e:
+                    if str(e).find("Connection refused"):
+                        logger.info(
+                            "Connection refused. Retrying in {} seconds...", (i + 1) * 2
+                        )
+                        time.sleep((i + 1) * 2)
+                    else:
+                        time.sleep(0.5)
 
         current_commit_id = self.get_current_commit()
         if current_commit_id != self.current_commit:
@@ -104,6 +118,9 @@ class GitRepository(Repository):
 
     def get_version_id(self) -> str:
         return self.get_current_commit()
+
+    def get_version_creation_time(self) -> datetime:
+        return self.get_commit_time(self.get_current_commit())
 
     def get_version_creation_time(self) -> datetime:
         return self.get_commit_time(self.get_current_commit())

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "statickg"
-version = "1.7.0"
+version = "1.7.1"
 description = "Tools for creating & running knowledge graphs from files"
 authors = ["Binh Vu <bvu687@gmail.com>"]
 license = "MIT"
@@ -15,6 +15,7 @@ typer = "^0.12.3"
 python-slugify = "^8.0.4"
 requests = "^2.32.3"
 joblib = "^1.4.2"
+loguru = "^0.7.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
