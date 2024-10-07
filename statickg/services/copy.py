@@ -5,7 +5,7 @@ from typing import TypedDict
 
 from statickg.helper import logger_helper, remove_deleted_files
 from statickg.models.prelude import ETLOutput, RelPath, Repository
-from statickg.services.interface import BaseFileService
+from statickg.services.interface import BaseFileWithCacheService
 
 
 class CopyServiceInvokeArgs(TypedDict):
@@ -14,7 +14,7 @@ class CopyServiceInvokeArgs(TypedDict):
     optional: bool
 
 
-class CopyService(BaseFileService[CopyServiceInvokeArgs]):
+class CopyService(BaseFileWithCacheService[CopyServiceInvokeArgs]):
 
     def forward(
         self,
@@ -25,7 +25,7 @@ class CopyService(BaseFileService[CopyServiceInvokeArgs]):
         infiles = self.list_files(
             repo,
             args["input"],
-            unique_filename=True,
+            unique_filepath=True,
             optional=args.get("optional", False),
             compute_missing_file_key=args.get("compute_missing_file_key", True),
         )
@@ -33,7 +33,7 @@ class CopyService(BaseFileService[CopyServiceInvokeArgs]):
         outdir.mkdir(parents=True, exist_ok=True)
 
         # detect and remove deleted files
-        remove_deleted_files(infiles, args["output"])
+        remove_deleted_files({file.path.name for file in infiles}, args["output"])
 
         # now loop through the input files and copy them
         with logger_helper(

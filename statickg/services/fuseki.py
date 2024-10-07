@@ -22,7 +22,11 @@ from statickg.models.prelude import (
     RelPathRefStrOrStr,
     Repository,
 )
-from statickg.services.interface import BaseFileService, BaseService
+from statickg.services.interface import (
+    BaseFileService,
+    BaseFileWithCacheService,
+    BaseService,
+)
 
 
 class FusekiEndpoint(TypedDict):
@@ -146,7 +150,9 @@ class DBInfo:
         return self
 
 
-class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]):
+class FusekiDataLoaderService(
+    BaseFileWithCacheService[FusekiDataLoaderServiceInvokeArgs]
+):
     """A service that can ensure that the Fuseki service is running with the latest data."""
 
     def __init__(
@@ -176,7 +182,7 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
         infiles = self.list_files(
             repo,
             args["input"],
-            unique_filename=True,
+            unique_filepath=True,
             optional=args.get("optional", False),
             compute_missing_file_key=True,
         )
@@ -187,7 +193,7 @@ class FusekiDataLoaderService(BaseFileService[FusekiDataLoaderServiceInvokeArgs]
             replaceable_infiles = self.list_files(
                 repo,
                 args["replaceable_input"],
-                unique_filename=True,
+                unique_filepath=True,
                 optional=args.get("optional", False),
                 compute_missing_file_key=True,
             )

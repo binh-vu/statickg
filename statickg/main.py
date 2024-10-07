@@ -29,8 +29,14 @@ class ETLPipelineRunner:
 
         self.services: dict[str, BaseService] = {}
         for name, service in etl.services.items():
-            self.services[name] = import_attr(service.classpath)(
-                name, self.workdir, service.args, self.services
+            cls = import_attr(service.classpath)
+            service_workdir = self.workdir / "services" / cls.get_service_name()
+            service_workdir.mkdir(parents=True, exist_ok=True)
+            self.services[name] = cls(
+                name,
+                service_workdir,
+                service.args,
+                self.services,
             )
 
         self.logger = logger.bind(name="statickg")
@@ -78,6 +84,7 @@ class ETLPipelineRunner:
         """Prepare the working directory for the ETL process"""
         (self.workdir / "logs").mkdir(parents=True, exist_ok=True)
         (self.workdir / "data").mkdir(parents=True, exist_ok=True)
+        (self.workdir / "services").mkdir(parents=True, exist_ok=True)
         (self.workdir / "databases").mkdir(parents=True, exist_ok=True)
 
         cfgfile = self.workdir / "config.json"

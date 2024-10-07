@@ -109,10 +109,9 @@ def json_ser_default_object(obj: Any):
     raise TypeError
 
 
-def remove_deleted_files(newfiles: list[InputFile], outdir: RelPath):
-    new_filenames = {file.path.stem for file in newfiles}
+def remove_deleted_files(new_filenames: set[str], outdir: RelPath):
     for file in outdir.get_path().iterdir():
-        if file.is_file() and file.stem not in new_filenames:
+        if file.is_file() and file.name not in new_filenames:
             file.unlink()
             logger.info("Remove deleted file {}", file)
 

@@ -24,6 +24,12 @@ class BaseService(Generic[A]):
     ):
         raise NotImplementedError()
 
+    @classmethod
+    def get_service_name(cls):
+        name = cls.__name__
+        assert name.endswith("Service")
+        return name[:-7].lower()
+
     def __call__(self, repo: Repository, args: A | list[A], output: ETLOutput):
         if isinstance(args, list):
             outputs = []
@@ -47,22 +53,14 @@ class BaseFileService(BaseService[A]):
         self.name = name
         self.workdir = workdir
         self.services = services
-        self.cache = CacheProcess(
-            workdir / f"services/{self.get_service_name()}/{slugify(name)}.db"
-        )
         self.logger = logger.bind(name=get_classpath(self.__class__).rsplit(".", 1)[0])
         self.args = args
-
-    def get_service_name(self):
-        name = self.__class__.__name__
-        assert name.endswith("Service")
-        return name[:-7].lower()
 
     def list_files(
         self,
         repo: Repository,
         patterns: RelPath | list[RelPath],
-        unique_filename: bool,
+        unique_filepath: bool,
         optional: bool = False,
         compute_missing_file_key: bool = False,
     ) -> list[InputFile]:
@@ -89,9 +87,11 @@ class BaseFileService(BaseService[A]):
             else:
                 raise ValueError(f"Unsupported base type: {pattern.basetype}")
 
-        if unique_filename:
-            filenames = Counter(file.path.name for file in files)
+        if unique_filepath:
+            filenames = Counter(file.path for file in files)
             if len(filenames) != len(files):
+                print(files)
+                print(patterns)
                 raise ValueError(
                     "Input files must have unique names. Here are some duplications: "
                     + str([k for k, v in filenames.items() if v > 1][:5])
@@ -108,3 +108,15 @@ class BaseFileService(BaseService[A]):
         if isinstance(patterns, list):
             return ", ".join([p.get_ident() for p in patterns])
         return patterns.get_ident()
+
+
+class BaseFileWithCacheService(BaseFileService[A]):
+    def __init__(
+        self,
+        name: str,
+        workdir: Path,
+        args: Any,
+        services: Mapping[str, BaseService],
+    ):
+        super().__init__(name, workdir, args, services)
+        self.cache = CacheProcess(workdir / f"{slugify(name)}.db")

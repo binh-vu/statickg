@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from statickg.helper import logger_helper
 from statickg.models.prelude import ETLOutput, RelPath, Repository
-from statickg.services.interface import BaseFileService, BaseService
+from statickg.services.interface import BaseFileWithCacheService, BaseService
 
 
 class ShServiceConstructArgs(TypedDict):
@@ -23,7 +23,7 @@ class ShServiceInvokeArgs(TypedDict):
     compute_missing_file_key: bool
 
 
-class ShService(BaseFileService[ShServiceInvokeArgs]):
+class ShService(BaseFileWithCacheService[ShServiceInvokeArgs]):
     """ """
 
     def __init__(
@@ -46,7 +46,7 @@ class ShService(BaseFileService[ShServiceInvokeArgs]):
         infiles = self.list_files(
             repo,
             args["input"],
-            unique_filename=True,
+            unique_filepath=True,
             optional=args.get("optional", False),
             compute_missing_file_key=args.get("compute_missing_file_key", True),
         )

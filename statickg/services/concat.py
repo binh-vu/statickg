@@ -22,7 +22,7 @@ class ConcatTTLService(BaseFileService[ConcatTTLServiceInvokeArgs]):
         infiles = self.list_files(
             repo,
             args["input"],
-            unique_filename=False,
+            unique_filepath=False,
             optional=args.get("optional", False),
             compute_missing_file_key=False,
         )

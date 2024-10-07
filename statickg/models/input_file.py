@@ -22,6 +22,9 @@ class InputFile:
     relpath: str
     path: Path
 
+    def get_ident(self):
+        return self.get_path_ident() + f"::{self.key}"
+
     def get_path_ident(self):
         return get_ident(self.basetype, self.relpath)
 

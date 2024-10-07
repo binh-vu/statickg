@@ -13,7 +13,8 @@ from tqdm import tqdm
 
 from statickg.helper import import_func, logger_helper, remove_deleted_files
 from statickg.models.prelude import ETLOutput, RelPath, Repository
-from statickg.services.interface import BaseFileService, BaseService
+from statickg.services.interface import BaseFileWithCacheService, BaseService
+from statickg.services.split import FormatOutputPath
 
 
 class DReprServiceConstructArgs(TypedDict):
@@ -25,7 +26,7 @@ class DReprServiceConstructArgs(TypedDict):
 
 class DReprServiceInvokeArgs(TypedDict):
     input: RelPath | list[RelPath]
-    output: RelPath
+    output: RelPath | FormatOutputPath
     optional: NotRequired[bool]
     compute_missing_file_key: NotRequired[bool]
 
@@ -33,15 +34,15 @@ class DReprServiceInvokeArgs(TypedDict):
 FORWARD_EXEC_JOB_RETURN_TYPE: TypeAlias = tuple[str, str]
 
 
-class DReprService(BaseFileService[DReprServiceInvokeArgs]):
+class DReprService(BaseFileWithCacheService[DReprServiceInvokeArgs]):
     """
     D-REPR Service that is used to extract data from a file
 
     Args:
         name: name of the service
         workdir: working directory
-        pylib_dir: directory where the python program is created
         args: arguments to the service
+        services: a dictionary of services
     """
 
     def __init__(
@@ -108,15 +109,52 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
         infiles = self.list_files(
             repo,
             args["input"],
-            unique_filename=True,
+            unique_filepath=True,
             optional=args.get("optional", False),
             compute_missing_file_key=args.get("compute_missing_file_key", True),
         )
-        outdir = args["output"].get_path()
-        outdir.mkdir(parents=True, exist_ok=True)
 
-        # detect and remove deleted files
-        remove_deleted_files(infiles, args["output"])
+        args_output = args["output"]
+        if isinstance(args_output, RelPath):
+            outdir = args_output.get_path()
+            outdir.mkdir(parents=True, exist_ok=True)
+
+            outdir_filename_fmt = "{filestem}.{fileext}"
+
+            # detect and remove deleted files
+            remove_deleted_files(
+                {
+                    outdir_filename_fmt.format(
+                        fileparent=infile.path.parent.name,
+                        filegrandparent=infile.path.parent.parent.name,
+                        filestem=infile.path.stem,
+                        fileext=self.extension,
+                    )
+                    for infile in infiles
+                },
+                args_output,
+            )
+        else:
+            outdir = args_output["base"].get_path()
+            outdir.mkdir(parents=True, exist_ok=True)
+
+            outdir_filename_fmt = args_output["format"]
+            # only support one level
+            assert outdir_filename_fmt.find("/") == -1, outdir_filename_fmt
+
+            # detect and remove deleted files
+            remove_deleted_files(
+                {
+                    outdir_filename_fmt.format(
+                        fileparent=infile.path.parent.name,
+                        filegrandparent=infile.path.parent.parent.name,
+                        filestem=infile.path.stem,
+                        fileext=self.extension,
+                    )
+                    for infile in infiles
+                },
+                args_output["base"],
+            )
 
         if len(self.programs) == 1:
             first_proram = next(iter(self.programs.values()))
@@ -136,7 +174,12 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
                     desc=readable_ptns,
                     disable=self.verbose != 1,
                 ):
-                    outfile = outdir / f"{infile.path.stem}.{self.extension}"
+                    outfile = outdir / outdir_filename_fmt.format(
+                        fileparent=infile.path.parent.name,
+                        filegrandparent=infile.path.parent.parent.name,
+                        filestem=infile.path.stem,
+                        fileext=self.extension,
+                    )
 
                     if len(self.programs) == 1:
                         assert first_proram is not None
@@ -164,7 +207,12 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
             else:
                 jobs = []
                 for infile in infiles:
-                    outfile = outdir / f"{infile.path.stem}.{self.extension}"
+                    outfile = outdir / outdir_filename_fmt.format(
+                        fileparent=infile.path.parent.name,
+                        filegrandparent=infile.path.parent.parent.name,
+                        filestem=infile.path.stem,
+                        fileext=self.extension,
+                    )
                     if len(self.programs) == 1:
                         assert first_proram is not None
                         programkey, program = first_proram
@@ -214,7 +262,7 @@ class DReprService(BaseFileService[DReprServiceInvokeArgs]):
 
     def setup(self, workdir: Path):
         pkgname = "gen_programs"
-        pkgdir = workdir / f"services/drepr/{pkgname}"
+        pkgdir = workdir / pkgname
 
         try:
             m = importlib.import_module(pkgname)
