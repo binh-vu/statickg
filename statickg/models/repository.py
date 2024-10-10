@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import time
 from abc import ABC, abstractmethod
@@ -44,9 +45,12 @@ class GitRepository(Repository):
         output = subprocess.check_output(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=self.repo
         )
-        if output.decode().strip() != "HEAD":
-            # we are in a branch and we can fetch the latest changes -- otherwise, we are in a detached HEAD state
-            # and we cannot fetch the latest changes (doing nothing)
+        if (
+            output.decode().strip() != "HEAD"
+            and os.environ.get("GIT_NO_REMOTE", "0") == "0"
+        ):
+            # check if we are in a branch and we are not offline, so we can fetch the latest changes of that branch
+            # if we not, we are in a detached HEAD state, and we cannot fetch the latest changes (doing nothing)
             # we should rely on commit id instead of results of git pull
             for i in range(max_retries):
                 try:

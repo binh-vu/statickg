@@ -90,8 +90,6 @@ class BaseFileService(BaseService[A]):
         if unique_filepath:
             filenames = Counter(file.path for file in files)
             if len(filenames) != len(files):
-                print(files)
-                print(patterns)
                 raise ValueError(
                     "Input files must have unique names. Here are some duplications: "
                     + str([k for k, v in filenames.items() if v > 1][:5])
