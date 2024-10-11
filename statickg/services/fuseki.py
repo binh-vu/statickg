@@ -5,10 +5,12 @@ import shutil
 import subprocess
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Mapping, NotRequired, Optional, TypedDict
 
 import requests
+import serde.json
 from rdflib import Graph
 from tqdm import tqdm
 
@@ -61,10 +63,14 @@ class FusekiDataLoaderServiceInvokeArgs(TypedDict):
 class DBInfo:
     # command and version of the database -- together with the file key, it uniquely
     # identifies the file
-    key: str
+    command: str
     version: int
     dir: Path
     hostname: Optional[str] = None
+
+    @cached_property
+    def key(self):
+        return f"cmd:{self.command}|version:{self.version}"
 
     def get_file_key(self, filekey: str) -> str:
         return self.key + "|" + filekey
@@ -76,6 +82,19 @@ class DBInfo:
         (self.dir / "_SUCCESS").unlink(missing_ok=True)
 
     def mark_valid(self):
+        if (self.dir / "_METADATA").exists():
+            metadata = serde.json.deser(self.dir / "_METADATA")
+            assert metadata["command"] == self.command
+            assert metadata["version"] == self.version
+        else:
+            # when we mark a dbinfo as valid, we should have the metadata file
+            serde.json.ser(
+                {
+                    "command": self.command,
+                    "version": self.version,
+                },
+                self.dir / "_METADATA",
+            )
         (self.dir / "_SUCCESS").touch()
 
     def has_running_service(self) -> bool:
@@ -85,7 +104,7 @@ class DBInfo:
     def next(self) -> DBInfo:
         """Get next directory for the database"""
         return DBInfo(
-            key=self.key,
+            command=self.command,
             version=self.version + 1,
             dir=self.dir.parent / f"version-{self.version + 1:03d}",
         )
@@ -95,11 +114,12 @@ class DBInfo:
     ) -> list[DBInfo]:
         """Get older versions of the database"""
         versions = []
-        for i in range(1, self.version):
+        for i in range(self.version):
             dir = self.dir.parent / f"version-{i:03d}"
             if dir.exists():
+                assert (dir / "_METADATA").exists()
                 info = DBInfo(
-                    key=self.key,
+                    command=serde.json.deser(dir / "_METADATA")["command"],
                     version=i,
                     dir=dir,
                 )
@@ -118,8 +138,25 @@ class DBInfo:
 
         dbversion = get_latest_version(dbdir / "version-*")
         dbdir = dbdir / f"version-{dbversion:03d}"
+
+        if (dbdir / "_METADATA").exists():
+            metadata = serde.json.deser(dbdir / "_METADATA")
+            assert metadata["command"] == str(args["load"]["command"])
+            assert metadata["version"] == dbversion
+        else:
+            assert dbversion == 0, dbversion
+            dbdir.mkdir(parents=True, exist_ok=True)
+            metadata = {
+                "command": str(args["load"]["command"]),
+                "version": dbversion,
+            }
+            serde.json.ser(
+                metadata,
+                dbdir / "_METADATA",
+            )
+
         return DBInfo(
-            key=f"cmd:{args['load']['command']}|version:{dbversion}",
+            command=metadata["command"],
             version=dbversion,
             dir=dbdir,
         )._update_hostname(args["endpoint"]["find_by_id"])
@@ -202,15 +239,27 @@ class FusekiDataLoaderService(
         # determine if we can load the data incrementally
         dbinfo = DBInfo.get_current_dbinfo(args)
         can_load_incremental = dbinfo.is_valid()
+        can_load_incremental_explanation = []
+
+        if not can_load_incremental:
+            can_load_incremental_explanation.append("the database is not valid")
+
         if can_load_incremental:
             prev_infile_idents = set(self.cache.db.keys())
             current_infile_idents = {file.get_path_ident() for file in infiles}.union(
                 (file.get_path_ident() for file in replaceable_infiles)
             )
 
-            if prev_infile_idents.difference(current_infile_idents):
+            if _tmp_removed_files := prev_infile_idents.difference(
+                current_infile_idents
+            ):
                 # some files are removed
                 can_load_incremental = False
+                can_load_incremental_explanation.append(
+                    "some files are removed (e.g., {file})".format(
+                        next(iter(_tmp_removed_files))
+                    )
+                )
             else:
                 for infile in infiles:
                     infile_ident = infile.get_path_ident()
@@ -219,14 +268,25 @@ class FusekiDataLoaderService(
                         if status.key == dbinfo.get_file_key(infile.key):
                             if not status.is_success:
                                 can_load_incremental = False
+                                can_load_incremental_explanation.append(
+                                    f"{infile_ident} is not successfully loaded (this shouldn't happen)"
+                                )
                                 break
                         else:
                             # the key is different --> the file is modified
                             can_load_incremental = False
+                            can_load_incremental_explanation.append(
+                                f"{infile_ident} is modified"
+                            )
                             break
 
         # if we cannot load the data incrementally, we need to reload the data from scratch
         if not can_load_incremental:
+            self.logger.info(
+                "Cannot load the data incrementally. Reasons: {}",
+                "\n".join(f"\t- {x}" for x in can_load_incremental_explanation),
+            )
+
             # invalidate the cache.
             self.cache.db.clear()
 

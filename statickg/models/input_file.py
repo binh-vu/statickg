@@ -115,6 +115,9 @@ class RelPathRefStr:
         )
         return "".join(chunks)
 
+    def __str__(self):
+        return self.value
+
 
 RelPathRefStrOrStr = Union[RelPathRefStr, str]
 
