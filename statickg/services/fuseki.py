@@ -144,7 +144,9 @@ class DBInfo:
             assert metadata["command"] == str(args["load"]["command"])
             assert metadata["version"] == dbversion
         else:
-            assert dbversion == 0, dbversion
+            # dbversion may not be 0. for example if we are building version 1
+            # and we failed, the _METADATA file may not be created yet. It will
+            # be created when we successfully create the database.
             dbdir.mkdir(parents=True, exist_ok=True)
             metadata = {
                 "command": str(args["load"]["command"]),
