@@ -257,7 +257,7 @@ class FusekiDataLoaderService(
                 can_load_incremental = False
                 can_load_incremental_explanation.append(
                     "some files are removed (e.g., {file})".format(
-                        next(iter(_tmp_removed_files))
+                        file=next(iter(_tmp_removed_files))
                     )
                 )
             else:
