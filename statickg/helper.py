@@ -3,6 +3,7 @@ from __future__ import annotations
 import glob
 import importlib
 import re
+import shutil
 import socket
 import time
 from contextlib import contextmanager
@@ -112,6 +113,22 @@ def json_ser_default_object(obj: Any):
 def remove_deleted_files(new_filenames: set[str], outdir: RelPath):
     for file in outdir.get_path().iterdir():
         if file.is_file() and file.name not in new_filenames:
+            file.unlink()
+            logger.info("Remove deleted file {}", file)
+
+
+def remove_deleted_2nested_files(new_relpaths: set[str], outdir: Path):
+    for file in outdir.iterdir():
+        if file.is_dir():
+            if file not in new_relpaths:
+                shutil.rmtree(file)
+                logger.info("Remove deleted folder {}", file)
+            else:
+                for subfile in outdir.iterdir():
+                    if subfile not in new_relpaths:
+                        subfile.unlink()
+                        logger.info("Remove deleted file {}", subfile)
+        elif file not in new_relpaths:
             file.unlink()
             logger.info("Remove deleted file {}", file)
 

@@ -330,7 +330,7 @@ class FusekiDataLoaderService(
             for i in tqdm(
                 range(0, len(infiles), self.batch_size),
                 desc=readable_ptns,
-                disable=self.verbose >= 2,
+                disable=self.verbose < 2,
             ):
                 batch = infiles[i : i + self.batch_size]
                 batch_ident = [file.get_path_ident() for file in batch]
@@ -355,7 +355,7 @@ class FusekiDataLoaderService(
             if "replaceable_input" in args:
                 readable_ptns = self.get_readable_patterns(args["replaceable_input"])
             for infile in tqdm(
-                replaceable_infiles, desc=readable_ptns, disable=self.verbose >= 2
+                replaceable_infiles, desc=readable_ptns, disable=self.verbose < 2
             ):
                 infile_ident = infile.get_path_ident()
                 with self.cache.auto(
@@ -457,12 +457,15 @@ class FusekiDataLoaderService(
             basedir = args["load"]["basedir"]
             if not isinstance(basedir, str):
                 basedir = basedir.get_path()
+
+            with open(Path(basedir) / "fuseki_input_files.txt", "w") as f:
+                for file in files:
+                    f.write(str(file.path.relative_to(basedir)) + "\n")
+
             (subprocess.check_output if self.capture_output else subprocess.check_call)(
                 self.get_load_command(args).format(
                     DB_DIR=dbinfo.dir,
-                    FILES=" ".join(
-                        [str(file.path.relative_to(basedir)) for file in files]
-                    ),
+                    FILES="fuseki_input_files.txt",
                 ),
                 shell=True,
             )

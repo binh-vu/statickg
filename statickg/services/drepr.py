@@ -11,7 +11,12 @@ from drepr.main import convert
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from statickg.helper import import_func, logger_helper, remove_deleted_files
+from statickg.helper import (
+    import_func,
+    logger_helper,
+    remove_deleted_2nested_files,
+    remove_deleted_files,
+)
 from statickg.models.prelude import ETLOutput, RelPath, Repository
 from statickg.services.interface import BaseFileWithCacheService, BaseService
 from statickg.services.split import FormatOutputPath
@@ -139,22 +144,39 @@ class DReprService(BaseFileWithCacheService[DReprServiceInvokeArgs]):
             outdir.mkdir(parents=True, exist_ok=True)
 
             outdir_filename_fmt = args_output["format"]
-            # only support one level
-            assert outdir_filename_fmt.find("/") == -1, outdir_filename_fmt
-
             # detect and remove deleted files
-            remove_deleted_files(
-                {
-                    outdir_filename_fmt.format(
-                        fileparent=infile.path.parent.name,
-                        filegrandparent=infile.path.parent.parent.name,
-                        filestem=infile.path.stem,
-                        fileext=self.extension,
-                    )
-                    for infile in infiles
-                },
-                args_output["base"],
-            )
+            # only support two levels
+            n_levels = outdir_filename_fmt.count("/")
+            if n_levels == 0:
+                remove_deleted_files(
+                    {
+                        outdir_filename_fmt.format(
+                            fileparent=infile.path.parent.name,
+                            filegrandparent=infile.path.parent.parent.name,
+                            filestem=infile.path.stem,
+                            fileext=self.extension,
+                        )
+                        for infile in infiles
+                    },
+                    args_output["base"],
+                )
+            elif n_levels == 1:
+                remove_deleted_2nested_files(
+                    {
+                        outdir_filename_fmt.format(
+                            fileparent=infile.path.parent.name,
+                            filegrandparent=infile.path.parent.parent.name,
+                            filestem=infile.path.stem,
+                            fileext=self.extension,
+                        )
+                        for infile in infiles
+                    },
+                    outdir,
+                )
+            else:
+                raise ValueError(
+                    "Only support two levels of nested folders. Get {}", n_levels
+                )
 
         if len(self.programs) == 1:
             first_proram = next(iter(self.programs.values()))
@@ -180,6 +202,7 @@ class DReprService(BaseFileWithCacheService[DReprServiceInvokeArgs]):
                         filestem=infile.path.stem,
                         fileext=self.extension,
                     )
+                    outfile.parent.mkdir(parents=True, exist_ok=True)
 
                     if len(self.programs) == 1:
                         assert first_proram is not None
@@ -213,6 +236,8 @@ class DReprService(BaseFileWithCacheService[DReprServiceInvokeArgs]):
                         filestem=infile.path.stem,
                         fileext=self.extension,
                     )
+                    outfile.parent.mkdir(parents=True, exist_ok=True)
+
                     if len(self.programs) == 1:
                         assert first_proram is not None
                         programkey, program = first_proram
