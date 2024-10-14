@@ -120,14 +120,15 @@ def remove_deleted_files(new_filenames: set[str], outdir: RelPath):
 def remove_deleted_2nested_files(new_relpaths: set[str], outdir: Path):
     for file in outdir.iterdir():
         if file.is_dir():
-            if file not in new_relpaths:
-                shutil.rmtree(file)
-                logger.info("Remove deleted folder {}", file)
-            else:
-                for subfile in outdir.iterdir():
-                    if subfile not in new_relpaths:
-                        subfile.unlink()
-                        logger.info("Remove deleted file {}", subfile)
+            for subfile in file.iterdir():
+                if subfile not in new_relpaths:
+                    subfile.unlink()
+                    logger.info("Remove deleted file {}", subfile)
+            try:
+                next(file.iterdir())
+            except StopIteration:
+                file.rmdir()
+                logger.info("Remove empty folder {}", file)
         elif file not in new_relpaths:
             file.unlink()
             logger.info("Remove deleted file {}", file)

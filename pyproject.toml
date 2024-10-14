@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "statickg"
-version = "1.9.5"
+version = "1.9.6"
 description = "Tools for creating & running knowledge graphs from files"
 authors = ["Binh Vu <bvu687@gmail.com>"]
 license = "MIT"
