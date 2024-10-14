@@ -121,7 +121,7 @@ def remove_deleted_2nested_files(new_relpaths: set[str], outdir: Path):
     for file in outdir.iterdir():
         if file.is_dir():
             for subfile in file.iterdir():
-                if subfile not in new_relpaths:
+                if str(subfile.relative_to(outdir)) not in new_relpaths:
                     subfile.unlink()
                     logger.info("Remove deleted file {}", subfile)
             try:
