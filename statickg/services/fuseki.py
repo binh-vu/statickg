@@ -30,6 +30,8 @@ from statickg.services.interface import (
     BaseService,
 )
 
+DBINFO_METADATA_FILE = "_METADATA"
+
 
 class FusekiEndpoint(TypedDict):
     update: str
@@ -81,9 +83,9 @@ class DBInfo:
     def invalidate(self):
         (self.dir / "_SUCCESS").unlink(missing_ok=True)
 
-    def mark_valid(self):
-        if (self.dir / "_METADATA").exists():
-            metadata = serde.json.deser(self.dir / "_METADATA")
+    def mark_valid(self) -> None:
+        if (self.dir / DBINFO_METADATA_FILE).exists():
+            metadata = serde.json.deser(self.dir / DBINFO_METADATA_FILE)
             assert metadata["command"] == self.command
             assert metadata["version"] == self.version
         else:
@@ -93,7 +95,7 @@ class DBInfo:
                     "command": self.command,
                     "version": self.version,
                 },
-                self.dir / "_METADATA",
+                self.dir / DBINFO_METADATA_FILE,
             )
         (self.dir / "_SUCCESS").touch()
 
@@ -117,9 +119,9 @@ class DBInfo:
         for i in range(self.version):
             dir = self.dir.parent / f"version-{i:03d}"
             if dir.exists():
-                assert (dir / "_METADATA").exists()
+                assert (dir / DBINFO_METADATA_FILE).exists()
                 info = DBInfo(
-                    command=serde.json.deser(dir / "_METADATA")["command"],
+                    command=serde.json.deser(dir / DBINFO_METADATA_FILE)["command"],
                     version=i,
                     dir=dir,
                 )
@@ -139,8 +141,8 @@ class DBInfo:
         dbversion = get_latest_version(dbdir / "version-*")
         dbdir = dbdir / f"version-{dbversion:03d}"
 
-        if (dbdir / "_METADATA").exists():
-            metadata = serde.json.deser(dbdir / "_METADATA")
+        if (dbdir / DBINFO_METADATA_FILE).exists():
+            metadata = serde.json.deser(dbdir / DBINFO_METADATA_FILE)
             assert metadata["command"] == str(args["load"]["command"])
             assert metadata["version"] == dbversion
         else:
@@ -154,7 +156,7 @@ class DBInfo:
             }
             serde.json.ser(
                 metadata,
-                dbdir / "_METADATA",
+                dbdir / DBINFO_METADATA_FILE,
             )
 
         return DBInfo(
@@ -458,17 +460,37 @@ class FusekiDataLoaderService(
             if not isinstance(basedir, str):
                 basedir = basedir.get_path()
 
-            with open(Path(basedir) / "fuseki_input_files.txt", "w") as f:
-                for file in files:
-                    f.write(str(file.path.relative_to(basedir)) + "\n")
+            load_cmd = self.get_load_command(args)
+            if load_cmd.find("mytdbloader") != -1:
+                with open(Path(basedir) / "fuseki_input_files.txt", "w") as f:
+                    for file in files:
+                        f.write(str(file.path.relative_to(basedir)) + "\n")
 
-            (subprocess.check_output if self.capture_output else subprocess.check_call)(
-                self.get_load_command(args).format(
-                    DB_DIR=dbinfo.dir,
-                    FILES="fuseki_input_files.txt",
-                ),
-                shell=True,
-            )
+                (
+                    subprocess.check_output
+                    if self.capture_output
+                    else subprocess.check_call
+                )(
+                    load_cmd.format(
+                        DB_DIR=dbinfo.dir,
+                        FILES="fuseki_input_files.txt",
+                    ),
+                    shell=True,
+                )
+            else:
+                (
+                    subprocess.check_output
+                    if self.capture_output
+                    else subprocess.check_call
+                )(
+                    load_cmd.format(
+                        DB_DIR=dbinfo.dir,
+                        FILES=" ".join(
+                            [str(file.path.relative_to(basedir)) for file in files]
+                        ),
+                    ),
+                    shell=True,
+                )
 
     def upload_file(self, hostname: str, endpoint: FusekiEndpoint, file: Path):
         resp = requests.post(
