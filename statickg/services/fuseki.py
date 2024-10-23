@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
+import time
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import cached_property
@@ -209,6 +211,7 @@ class FusekiDataLoaderService(
         self.batch_size = args.get("batch_size", 10)
         self.started_services = {}
         self.hostname = "http://localhost"
+        self.fuseki_temp_port = int(os.environ.get("FUSEKI_TMP_PORT", "3031"))
 
     def forward(
         self,
@@ -329,6 +332,8 @@ class FusekiDataLoaderService(
             # before we load the data, we need to clear success marker
             dbinfo.invalidate()
 
+            start = time.time()
+
             for i in tqdm(
                 range(0, len(infiles), self.batch_size),
                 desc=readable_ptns,
@@ -368,6 +373,11 @@ class FusekiDataLoaderService(
                     if notfound:
                         self.load_files(args, dbinfo, True, [infile])
 
+            end = time.time()
+            self.logger.info(
+                "Loading data to {} took {} seconds", dbinfo.dir, end - start
+            )
+
         # create a _SUCCESS file to indicate that the data is loaded successfully
         dbinfo.mark_valid()
         return dbinfo
@@ -377,7 +387,7 @@ class FusekiDataLoaderService(
             return
 
         name = f"fuseki-{dbinfo.dir.name}"
-        port = find_available_port(self.hostname, 3031)
+        port = find_available_port(self.hostname, self.fuseki_temp_port)
         try:
             (subprocess.check_output if self.capture_output else subprocess.check_call)(
                 self.get_start_command(args).format(
@@ -399,7 +409,7 @@ class FusekiDataLoaderService(
             )
 
         self.started_services[dbinfo.dir] = (name, port)
-        assert dbinfo.hostname is None
+        assert dbinfo.hostname is None, dbinfo
         dbinfo.hostname = f"{self.hostname}:{port}"
         self.logger.debug(
             "Started Fuseki service at {} serving {}", dbinfo.hostname, dbinfo.dir.name
