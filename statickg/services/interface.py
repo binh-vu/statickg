@@ -105,7 +105,7 @@ class BaseFileService(BaseService[A]):
     def remove_unknown_files(self, known_files: set[str], outdir: Path):
         for file in outdir.rglob("*"):
             relfile = file.relative_to(outdir)
-            if relfile not in known_files:
+            if file.is_file() and relfile not in known_files:
                 logger.info("Remove deleted file {}", relfile)
                 file.unlink()
 
