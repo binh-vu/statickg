@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
 from pathlib import Path
-from typing import TypeAlias, Union
+from typing import TypedDict, Union
+
+from pydantic import BaseModel
 
 
 class BaseType(str, Enum):
@@ -27,6 +30,49 @@ class InputFile:
 
     def get_path_ident(self):
         return get_ident(self.basetype, self.relpath)
+
+    @staticmethod
+    def from_relpath(relpath: RelPath):
+        path = relpath.get_path()
+        return InputFile(
+            basetype=relpath.basetype,
+            key=hashlib.sha256(path.read_bytes()).hexdigest(),
+            relpath=relpath.relpath,
+            path=path,
+        )
+
+
+class FormatOutputPath(TypedDict):
+    base: RelPath
+    format: str
+
+
+class FormatOutputPathModel(BaseModel):
+    outdir: Path
+    outfile_fmt: str
+
+    @staticmethod
+    def init(obj: RelPath | FormatOutputPath):
+        if isinstance(obj, RelPath):
+            outdir_base = obj
+            outfile_fmt = "{filestem}.{fileext}"
+            outdir_path = outdir_base.get_path()
+            outdir_path.mkdir(parents=True, exist_ok=True)
+        else:
+            outdir_base = obj["base"]
+            outfile_fmt = obj["format"]
+            outdir_path = outdir_base.get_path()
+            outdir_path.mkdir(parents=True, exist_ok=True)
+
+        return FormatOutputPathModel(outdir=outdir_path, outfile_fmt=outfile_fmt)
+
+    def get_outfile(self, infile: Path):
+        return self.outdir / self.outfile_fmt.format(
+            fileparent=infile.parent.name,
+            filegrandparent=infile.parent.parent.name,
+            filestem=infile.stem,
+            fileext=infile.suffix[1:],
+        )
 
 
 @dataclass
@@ -69,6 +115,12 @@ class RelPath:
 
     def get_ident(self):
         return get_ident(self.basetype, self.relpath)
+
+    def get_content_ident(self):
+        return (
+            get_ident(self.basetype, self.relpath)
+            + f"::{hashlib.sha256(self.get_path().read_bytes()).hexdigest()}"
+        )
 
     def __truediv__(self, other: str):
         return RelPath(self.basetype, self.basepath, str(Path(self.relpath) / other))

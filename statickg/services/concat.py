@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from statickg.models.etl import ETLOutput
-from statickg.models.input_file import RelPath
+from statickg.models.file_and_path import RelPath
 from statickg.models.repository import Repository
 from statickg.services.interface import BaseFileService
 

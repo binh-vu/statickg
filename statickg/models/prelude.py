@@ -1,5 +1,5 @@
 from statickg.models.etl import ETLConfig, ETLOutput, ETLTask, Service
-from statickg.models.input_file import (
+from statickg.models.file_and_path import (
     BaseType,
     InputFile,
     ProcessStatus,

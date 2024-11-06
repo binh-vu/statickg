@@ -26,11 +26,7 @@ from statickg.models.prelude import (
     RelPathRefStrOrStr,
     Repository,
 )
-from statickg.services.interface import (
-    BaseFileService,
-    BaseFileWithCacheService,
-    BaseService,
-)
+from statickg.services.interface import BaseFileWithCacheService, BaseService
 
 DBINFO_METADATA_FILE = "_METADATA"
 

@@ -102,6 +102,13 @@ class BaseFileService(BaseService[A]):
                 )
         return files
 
+    def remove_unknown_files(self, known_files: set[str], outdir: Path):
+        for file in outdir.rglob("*"):
+            relfile = file.relative_to(outdir)
+            if relfile not in known_files:
+                logger.info("Remove deleted file {}", relfile)
+                file.unlink()
+
     def get_readable_patterns(self, patterns: RelPath | list[RelPath]) -> str:
         if isinstance(patterns, list):
             return ", ".join([p.get_ident() for p in patterns])

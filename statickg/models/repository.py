@@ -10,7 +10,7 @@ from typing import Optional, TypeAlias
 
 from loguru import logger
 
-from statickg.models.input_file import BaseType, InputFile
+from statickg.models.file_and_path import BaseType, InputFile
 
 Pattern: TypeAlias = str
 
@@ -122,9 +122,6 @@ class GitRepository(Repository):
 
     def get_version_id(self) -> str:
         return self.get_current_commit()
-
-    def get_version_creation_time(self) -> datetime:
-        return self.get_commit_time(self.get_current_commit())
 
     def get_version_creation_time(self) -> datetime:
         return self.get_commit_time(self.get_current_commit())

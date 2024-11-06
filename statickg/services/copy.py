@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 from typing import TypedDict
 
-from statickg.helper import logger_helper, remove_deleted_files
+from libactor.cache import cache
+from tqdm import tqdm
+
+from statickg.helper import FileSqliteBackend, logger_helper, remove_deleted_files
+from statickg.models.file_and_path import InputFile
 from statickg.models.prelude import ETLOutput, RelPath, Repository
-from statickg.services.interface import BaseFileWithCacheService
+from statickg.services.interface import BaseFileService
 
 
 class CopyServiceInvokeArgs(TypedDict):
@@ -14,7 +19,7 @@ class CopyServiceInvokeArgs(TypedDict):
     optional: bool
 
 
-class CopyService(BaseFileWithCacheService[CopyServiceInvokeArgs]):
+class CopyService(BaseFileService[CopyServiceInvokeArgs]):
 
     def forward(
         self,
@@ -36,20 +41,32 @@ class CopyService(BaseFileWithCacheService[CopyServiceInvokeArgs]):
         remove_deleted_files({file.path.name for file in infiles}, args["output"])
 
         # now loop through the input files and copy them
-        with logger_helper(
-            self.logger,
-            1,
-            extra_msg=f"matching {self.get_readable_patterns(args['input'])}",
-        ) as log:
-            for infile in infiles:
-                outfile = outdir / infile.path.name
+        copy_fn = CopyFn.get_instance(self.workdir)
+        for infile in tqdm(
+            infiles,
+            desc=f"Copying files {self.get_readable_patterns(args['input'])}",
+        ):
+            copy_fn(infile, outdir / infile.path.name)
 
-                infile_ident = infile.get_path_ident()
-                with self.cache.auto(
-                    filepath=infile_ident,
-                    key=infile.key,
-                    outfile=outfile,
-                ) as notfound:
-                    if notfound:
-                        shutil.copy(infile.path, outfile)
-                    log(notfound, infile_ident)
+
+class CopyFn:
+    instances = {}
+
+    def __init__(self, workdir: Path):
+        self.workdir = workdir
+
+    @staticmethod
+    def get_instance(workdir: Path):
+        if workdir not in CopyFn.instances:
+            CopyFn.instances[workdir] = CopyFn(workdir)
+        return CopyFn.instances[workdir]
+
+    @cache(
+        backend=FileSqliteBackend.factory(),
+        cache_ser_args={
+            "infile": lambda x: x.get_ident(),
+        },
+    )
+    def __call__(self, infile: InputFile, outfile: Path):
+        shutil.copy(infile.path, outfile)
+        return outfile

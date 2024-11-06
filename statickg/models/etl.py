@@ -8,7 +8,7 @@ from typing import Any
 
 import serde.yaml
 
-from statickg.models.input_file import BaseType, RefPathRef, RelPath, RelPathRefStr
+from statickg.models.file_and_path import BaseType, RefPathRef, RelPath, RelPathRefStr
 
 
 @dataclass

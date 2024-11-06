@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import glob
 import importlib
+import pickle
 import re
-import shutil
 import socket
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Optional, Type
+from typing import Any, Callable, Optional, Protocol, Type
 
 import orjson
 from hugedict.sqlite import SqliteDict
+from libactor.cache import Backend, SqliteBackend
+from libactor.typing import Compression
 from loguru import logger
 
-from statickg.models.input_file import InputFile, ProcessStatus, RelPath, RelPathRefStr
+from statickg.models.file_and_path import ProcessStatus, RelPath, RelPathRefStr
 
 TYPE_ALIASES = {"typing.List": "list", "typing.Dict": "dict", "typing.Set": "set"}
 
@@ -164,6 +166,115 @@ class CacheProcess:
 
     def mark_compute_success(self, filepath: str, key: str):
         self.db[filepath] = ProcessStatus(key, is_success=True)
+
+
+class Fn:
+    instances = {}
+
+    def __init__(self, workdir: Path):
+        self.workdir = workdir
+
+    @classmethod
+    def get_instance(cls, workdir: Path):
+        if workdir not in cls.instances:
+            cls.instances[workdir] = cls(workdir)
+        return cls.instances[workdir]
+
+    @classmethod
+    def exec(cls, workdir: Path, **kwargs):
+        return cls.get_instance(workdir).invoke(**kwargs)
+
+
+class InstanceWorkdir(Protocol):
+    workdir: Path
+
+
+class FileSqliteBackend(Backend):
+    def __init__(
+        self,
+        dbfile: Path,
+        multi_files: bool = False,
+        compression: Optional[Compression] = None,
+        verbose: Optional[str] = None,
+    ):
+        self.multi_files = multi_files
+        self.verbose = verbose
+        self.db = SqliteBackend(
+            dbfile=dbfile,
+            ser=pickle.dumps,
+            deser=pickle.loads,
+            compression=compression,
+        )
+
+    @staticmethod
+    def factory(
+        filename: Optional[str] = None,
+        multi_files: bool = False,
+        compression: Optional[Compression] = None,
+        verbose: Optional[str] = None,
+    ):
+        def constructor(self: InstanceWorkdir, func, cache_args_helper):
+            return FileSqliteBackend(
+                dbfile=self.workdir / (filename or (func.__name__ + ".sqlite")),
+                multi_files=multi_files,
+                compression=compression,
+                verbose=verbose,
+            )
+
+        return constructor
+
+    def has_key(self, key: bytes) -> bool:
+        if self.verbose is not None:
+            if not self.db.has_key(key):
+                logger.info("[{}] Key not found: {}", self.verbose, key)
+                found = False
+            elif self.multi_files:
+                found = all(val.exists() for val in self.get(key))
+                if found:
+                    logger.info(
+                        "[{}] Key found {} and can reuse the output files",
+                        self.verbose,
+                        key,
+                    )
+                else:
+                    logger.info(
+                        "[{}] Key found {} but some output files are missing",
+                        self.verbose,
+                        key,
+                    )
+            else:
+                found = self.get(key).exists()
+                if found:
+                    logger.info(
+                        "[{}] Key found {} and can reuse the output file",
+                        self.verbose,
+                        key,
+                    )
+                else:
+                    logger.info(
+                        "[{}] Key found {} but some output file are missing",
+                        self.verbose,
+                        key,
+                    )
+            return found
+
+        if not self.db.has_key(key):
+            return False
+        if self.multi_files:
+            return all(val.exists() for val in self.get(key))
+        return self.get(key).exists()
+
+    def get(self, key: bytes) -> Any:
+        return self.db.get(key)
+
+    def set(self, key: bytes, value: Path | list[Path]) -> None:
+        self.db.set(key, value)
+
+    def __reduce__(self) -> str | tuple[Any, ...]:
+        return (
+            FileSqliteBackend,
+            (self.db.dbfile, self.multi_files, self.db.compression),
+        )
 
 
 @contextmanager

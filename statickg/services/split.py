@@ -13,7 +13,7 @@ from libactor.cache import SqliteBackend, cache
 from tqdm import tqdm
 
 from statickg.models.etl import ETLOutput
-from statickg.models.input_file import InputFile, RelPath
+from statickg.models.file_and_path import FormatOutputPath, InputFile, RelPath
 from statickg.models.repository import Repository
 from statickg.services.interface import BaseFileService, BaseService
 
@@ -21,11 +21,6 @@ from statickg.services.interface import BaseFileService, BaseService
 class HashSplitServiceConstructArgs(TypedDict):
     verbose: NotRequired[int]
     parallel: NotRequired[bool]
-
-
-class FormatOutputPath(TypedDict):
-    base: RelPath
-    format: str
 
 
 class HashSplitServiceInvokeArgs(TypedDict):

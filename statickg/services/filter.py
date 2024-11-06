@@ -13,9 +13,8 @@ from joblib import Parallel, delayed
 from libactor.cache import SqliteBackend, cache
 from tqdm import tqdm
 
-from statickg.helper import get_classpath, remove_deleted_files
-from statickg.models.etl import ETLOutput
-from statickg.models.input_file import InputFile, RelPath
+from statickg.helper import FileSqliteBackend, get_classpath, remove_deleted_files
+from statickg.models.prelude import ETLOutput, InputFile, RelPath
 from statickg.models.repository import Repository
 from statickg.services.interface import BaseFileService, BaseService
 from statickg.services.split import HashSplitService, read_file, write_file
@@ -153,9 +152,7 @@ class FilterFn:
         return FilterFn.instances[workdir]
 
     @cache(
-        backend=lambda slf, fn, arghelper: SqliteBackend(
-            func=fn, ser=pickle.dumps, deser=pickle.loads, dbdir=slf.workdir
-        ),
+        backend=FileSqliteBackend.factory(),
         cache_args=["bucket", "outdir", "key_prop", "filter_files", "file"],
         cache_ser_args={
             "outdir": lambda x: x.get_ident(),
@@ -175,9 +172,11 @@ class FilterFn:
         file: InputFile,
         filter_keys: set[str],
     ):
+        outfile = outdir.get_path() / bucket / file.path.name
+
         if len(filter_files) == 0:
-            shutil.copy(file.path, outdir.get_path() / bucket / file.path.name)
-            return
+            shutil.copy(file.path, outfile)
+            return outfile
 
         old_records = read_file(file.path)
         records = [
@@ -185,7 +184,10 @@ class FilterFn:
             for r in old_records
             if tuple(r[prop] for prop in key_prop) not in filter_keys
         ]
+
         if len(records) != len(old_records):
-            write_file(records, outdir.get_path() / bucket / file.path.name)
+            write_file(records, outfile)
         else:
-            shutil.copy(file.path, outdir.get_path() / bucket / file.path.name)
+            shutil.copy(file.path, outfile)
+
+        return outfile
