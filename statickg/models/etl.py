@@ -63,6 +63,9 @@ class ETLConfig:
         cfg = serde.yaml.deser(infile)
         assert cfg["version"] == 1
 
+        # fix data type
+        cfg = ETLConfig._fix_datatype(cfg)
+
         # convert relative path
         cfg = ETLConfig._handle_path(
             cfg, {f"::{k.value}::": (k, v.resolve()) for k, v in dirs.items()}
@@ -121,6 +124,18 @@ class ETLConfig:
             return cfg
         if isinstance(cfg, list):
             return [ETLConfig._handle_path(v, dirs) for v in cfg]
+        return cfg
+
+    @staticmethod
+    def _fix_datatype(cfg: Any):
+        if isinstance(cfg, float):
+            return float(cfg)
+        if isinstance(cfg, int):
+            return int(cfg)
+        if isinstance(cfg, dict):
+            return {k: ETLConfig._fix_datatype(v) for k, v in cfg.items()}
+        if isinstance(cfg, list):
+            return [ETLConfig._fix_datatype(v) for v in cfg]
         return cfg
 
     def to_dict(self):
