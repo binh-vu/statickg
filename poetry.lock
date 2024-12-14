@@ -364,22 +364,29 @@ optional = false
 python-versions = ">=3.8"
 files = [
     {file = "hugedict-2.14.1-cp310-cp310-macosx_10_14_x86_64.macosx_11_0_arm64.macosx_10_14_universal2.whl", hash = "sha256:ddc85448965a3dd7f625b6ca582f7c7470c4668e5bdc7883f29b74106ebcc66c"},
+    {file = "hugedict-2.14.1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:898dad9031a23fe0633cb0138a49ba64f4998ea56e8096808d72c1a64b1cfac9"},
     {file = "hugedict-2.14.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7123ca1231a1717279edfd81b3bbd3feedde372d4611824eea561d24e4d1eb54"},
     {file = "hugedict-2.14.1-cp310-cp310-manylinux_2_35_x86_64.whl", hash = "sha256:5a128c3126554e152d379cb86ead1595fcdacbbd2228d2c818bd2b4b39f7d367"},
     {file = "hugedict-2.14.1-cp311-cp311-macosx_10_14_x86_64.macosx_11_0_arm64.macosx_10_14_universal2.whl", hash = "sha256:42d2b63f3d3b97d03b9e7cb12402d5781361bd3cc1917f648df37638e447bb38"},
+    {file = "hugedict-2.14.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c72f408f47c46ab388fad92c4bdc0afc57d3b5bc5f8644797f17df3b5f2d9fba"},
     {file = "hugedict-2.14.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:452937aa4eee5d6d06768917f8fa43191689e910c3e68812cf37d52a4ca2789f"},
     {file = "hugedict-2.14.1-cp311-cp311-manylinux_2_35_x86_64.whl", hash = "sha256:71b6f593ebae49f201c4993dac7179a8f53167cab9659285011e3d7edd70787f"},
     {file = "hugedict-2.14.1-cp312-cp312-macosx_10_14_x86_64.macosx_11_0_arm64.macosx_10_14_universal2.whl", hash = "sha256:1af5e6953c0de9539f612e80be4c876ef106d92c8774d0352d55872527edb7b5"},
+    {file = "hugedict-2.14.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c6b33292cfc22798767ff9d1fe736ad95beda7f55d127dd5fc39d23e066bcc26"},
     {file = "hugedict-2.14.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4e3e257f9987c3ab0cd7c0da57f196717eb97e70dad95594816df0e3d574d59c"},
     {file = "hugedict-2.14.1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:cb3090d7986fc23450d1244efe9b681bcdc309af5b16c2f083e92d64c57cfa62"},
+    {file = "hugedict-2.14.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:583a8b077d1a58dd79a51faddb381827b1c03f60304f694ffb607e86cb970caa"},
     {file = "hugedict-2.14.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:243bda2ebf78d8a33786ff2defd0d7b2f3b9ea04539011635ef18951a83bc21a"},
     {file = "hugedict-2.14.1-cp38-cp38-macosx_10_14_x86_64.macosx_11_0_arm64.macosx_10_14_universal2.whl", hash = "sha256:81f4f014f21ca4d77d824895ffd894aa2793df1d2179e3d009de9b21a6cca053"},
+    {file = "hugedict-2.14.1-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:84335194bee4cbe5be6e7fb112bd495cda1cc944b78c2d45baf0c0f5a693334c"},
     {file = "hugedict-2.14.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:527d2c6b357a3c1c4b19b20dedbe0043508bc5cedf504403ed53d53d51276a51"},
     {file = "hugedict-2.14.1-cp38-cp38-manylinux_2_35_x86_64.whl", hash = "sha256:9cb94ddc63d7e73a79c22f7585f31941f84fc2be7941517bf0a8543c37cec497"},
     {file = "hugedict-2.14.1-cp38-none-win_amd64.whl", hash = "sha256:31695862328d25dcf460d9add392880241e7c2c1ec935bb488bbbb06059ec47e"},
     {file = "hugedict-2.14.1-cp39-cp39-macosx_10_14_x86_64.macosx_11_0_arm64.macosx_10_14_universal2.whl", hash = "sha256:f58abdbf06c21033cc0adb72e8c6e890fa98e0382b936b6d49f6cec15bc31579"},
+    {file = "hugedict-2.14.1-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0cf04627734e4cf5e4cc5bab74aa73e79d0ee03473ee90d1d15a3cb5c8e653fd"},
     {file = "hugedict-2.14.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b042ccc78edc4573e2e222cb803a7e174f5033052ab45f692005b072bc4f05f3"},
     {file = "hugedict-2.14.1-cp39-cp39-manylinux_2_35_x86_64.whl", hash = "sha256:f1e5f27e88a5e694d53521f4292128093ba669cc1f9bd191902ae894d7a26552"},
+    {file = "hugedict-2.14.1-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c86a3c5f0e6df2c4c3218b1803c395b8918e5070b22992914d5f7f7de5c94dd0"},
     {file = "hugedict-2.14.1-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c7df654cda2667eeb7a85257c878a572f72f8545420d819516bc65ca7c276f2b"},
     {file = "hugedict-2.14.1-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:294bfb73edce5413c356969cb9b20822b2f12b1786811fab159e07410348acce"},
     {file = "hugedict-2.14.1.tar.gz", hash = "sha256:d163f5dfbe11d26746e811c32aae656733f517d56f977e0ac6acc4db1b3e3175"},
@@ -433,13 +440,13 @@ files = [
 
 [[package]]
 name = "libactor"
-version = "2.0.0"
+version = "2.0.1"
 description = ""
 optional = false
 python-versions = "<4.0,>=3.11"
 files = [
-    {file = "libactor-2.0.0-py3-none-any.whl", hash = "sha256:f6f5acf21ed480f257a11055d61a7b6f50d4fc28ce959d3e58c5b912c90ee0c3"},
-    {file = "libactor-2.0.0.tar.gz", hash = "sha256:b5de1d232f3482c4af35ed7e3313640b30e84f22b94f52206472d9e5bb0b8594"},
+    {file = "libactor-2.0.1-py3-none-any.whl", hash = "sha256:c029d694edebccf56c94be634daf8a936c176985c4dc269ff9a5d15c7d7dde29"},
+    {file = "libactor-2.0.1.tar.gz", hash = "sha256:0c187bb3cfc6f925630499d8be6e66d924da2170bba87a27c1c6c0f607e43729"},
 ]
 
 [package.dependencies]
@@ -1421,4 +1428,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "ab0481e8594fa3b24442501db522e237cd66141146c910687aee4db0e8cb9f61"
+content-hash = "a777e29c086041f0b91bfb7aa5c507dc22a7362e924c16cd660a07e8d8f49a37"

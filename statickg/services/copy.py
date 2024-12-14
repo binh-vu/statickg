@@ -41,7 +41,7 @@ class CopyService(BaseFileService[CopyServiceInvokeArgs]):
         remove_deleted_files({file.path.name for file in infiles}, args["output"])
 
         # now loop through the input files and copy them
-        copy_fn = CopyFn.get_instance(self.workdir)
+        copy_fn = CopyFn.get_instance(self.workdir).invoke
         for infile in tqdm(
             infiles,
             desc=f"Copying files {self.get_readable_patterns(args['input'])}",
@@ -67,6 +67,6 @@ class CopyFn:
             "infile": lambda x: x.get_ident(),
         },
     )
-    def __call__(self, infile: InputFile, outfile: Path):
+    def invoke(self, infile: InputFile, outfile: Path):
         shutil.copy(infile.path, outfile)
         return outfile
