@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
 from pathlib import Path
-from typing import TypedDict, Union
+from typing import TypeAlias, TypedDict, Union
 
 from pydantic import BaseModel
 
@@ -30,6 +30,12 @@ class InputFile:
 
     def get_path_ident(self):
         return get_ident(self.basetype, self.relpath)
+
+    def get_basedir(self):
+        basedir = self.path
+        for i in range(len(Path(self.relpath).parents)):
+            basedir = basedir.parent
+        return basedir
 
     @staticmethod
     def from_relpath(relpath: RelPath):
@@ -171,7 +177,7 @@ class RelPathRefStr:
         return self.value
 
 
-RelPathRefStrOrStr = Union[RelPathRefStr, str]
+RelPathRefStrOrStr: TypeAlias = Union[RelPathRefStr, str]
 
 
 def get_ident(base: BaseType, relpath: str) -> str:

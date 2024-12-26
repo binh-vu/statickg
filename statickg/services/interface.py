@@ -19,7 +19,7 @@ class BaseService(Generic[A]):
         self,
         name: str,
         workdir: Path,
-        args: Any,
+        args: A,
         services: Mapping[str, BaseService],
     ):
         raise NotImplementedError()
@@ -47,7 +47,7 @@ class BaseFileService(BaseService[A]):
         self,
         name: str,
         workdir: Path,
-        args: Any,
+        args: A,
         services: Mapping[str, BaseService],
     ):
         self.name = name
@@ -120,7 +120,7 @@ class BaseFileWithCacheService(BaseFileService[A]):
         self,
         name: str,
         workdir: Path,
-        args: Any,
+        args: A,
         services: Mapping[str, BaseService],
     ):
         super().__init__(name, workdir, args, services)
