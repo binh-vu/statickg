@@ -340,11 +340,15 @@ class DataLoaderService(BaseFileWithCacheService[DataLoaderServiceConstructArgs]
 
         name = self.get_db_service_id(dbinfo.dir)
         port = desired_port or find_available_port(self.hostname, self.db_temp_port)
-
+        start_cmd = self.start_command.format(
+            ID=name, PORT=str(port), DB_DIR=dbinfo.dir
+        )
         try:
-            self.logger.debug("Starting service with ID = {}", name)
+            self.logger.debug(
+                "Starting service with:\n\t- ID = {}\n\t- Command = {}", name, start_cmd
+            )
             (subprocess.check_output if self.capture_output else subprocess.check_call)(
-                self.start_command.format(ID=name, PORT=str(port), DB_DIR=dbinfo.dir),
+                start_cmd,
                 shell=True,
             )
         except:
@@ -352,7 +356,7 @@ class DataLoaderService(BaseFileWithCacheService[DataLoaderServiceConstructArgs]
             self._stop_service(name)
             self.logger.debug("(Retry) Starting service with ID = {}", name)
             (subprocess.check_output if self.capture_output else subprocess.check_call)(
-                self.start_command.format(ID=name, PORT=str(port), DB_DIR=dbinfo.dir),
+                start_cmd,
                 shell=True,
             )
 
@@ -439,7 +443,10 @@ class DataLoaderService(BaseFileWithCacheService[DataLoaderServiceConstructArgs]
 
         if (dbdir / DBINFO_METADATA_FILE).exists():
             metadata = serde.json.deser(dbdir / DBINFO_METADATA_FILE)
-            assert metadata["command"] == str(self.args["load_cmd"])
+            assert metadata["command"] == str(self.args["load_cmd"]), (
+                metadata["command"],
+                str(self.args["load_cmd"]),
+            )
             assert metadata["version"] == dbversion
         else:
             # dbversion may not be 0. for example if we are building version 1
