@@ -12,6 +12,7 @@ from typing import Any, Callable, Optional, Protocol, Type
 
 import orjson
 from hugedict.sqlite import SqliteDict
+from joblib import Parallel
 from libactor.cache import Backend, SqliteBackend
 from libactor.typing import Compression
 from loguru import logger
@@ -190,6 +191,11 @@ class InstanceWorkdir(Protocol):
 
 
 class FileSqliteBackend(Backend):
+    """This backend caches the process that returns a file or a list of files, which
+    stores the results of the process. If the file is missing, then the cache is considered
+    invalid and the process will be re-executed.
+    """
+
     def __init__(
         self,
         dbfile: Path,
@@ -380,3 +386,13 @@ def is_port_available(hostname: str, port: int):
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return not (s.connect_ex((hostname, port)) == 0)
+
+
+_parallel_executor = None
+
+
+def get_parallel_executor(parallel: bool = True):
+    global _parallel_executor
+    if _parallel_executor is None:
+        _parallel_executor = Parallel(n_jobs=-1, return_as="generator_unordered")
+    return _parallel_executor

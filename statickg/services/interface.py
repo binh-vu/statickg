@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from collections import Counter
 from pathlib import Path
-from typing import Any, Generic, Mapping, TypeVar
+from typing import Any, Generic, Mapping, TypeVar, cast
 
 from loguru import logger
 from slugify import slugify
@@ -102,9 +102,20 @@ class BaseFileService(BaseService[A]):
                 )
         return files
 
-    def remove_unknown_files(self, known_files: set[str], outdir: Path):
+    def remove_unknown_files(self, known_files: set[str] | set[Path], outdir: Path):
+        if len(known_files) > 0:
+            file = next(iter(known_files))
+            if isinstance(file, Path):
+                if file.is_absolute():
+                    known_files = {
+                        str(file.relative_to(outdir))
+                        for file in cast(set[Path], known_files)
+                    }
+                else:
+                    known_files = {str(file) for file in known_files}
+
         for file in outdir.rglob("*"):
-            relfile = file.relative_to(outdir)
+            relfile = str(file.relative_to(outdir))
             if file.is_file() and relfile not in known_files:
                 logger.info("Remove deleted file {}", relfile)
                 file.unlink()
