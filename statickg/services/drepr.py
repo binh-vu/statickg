@@ -39,7 +39,7 @@ class DReprServiceInvokeArgs(TypedDict):
 FORWARD_EXEC_JOB_RETURN_TYPE: TypeAlias = tuple[str, str]
 
 
-class DReprService(BaseFileWithCacheService[DReprServiceInvokeArgs]):
+class DReprService(BaseFileWithCacheService[DReprServiceConstructArgs]):
     """
     D-REPR Service that is used to extract data from a file
 
