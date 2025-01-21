@@ -120,6 +120,15 @@ class GitRepository(Repository):
         )
         return datetime.fromtimestamp(int(unix_timestamp))
 
+    def commit_all(self, message: str):
+        subprocess.check_call(["git", "add", "-A"], cwd=self.repo)
+        subprocess.check_call(["git", "commit", "-m", message], cwd=self.repo)
+        return self
+
+    def push(self):
+        subprocess.check_call(["git", "push"], cwd=self.repo)
+        return self
+
     def get_version_id(self) -> str:
         return self.get_current_commit()
 
