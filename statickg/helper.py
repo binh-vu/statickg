@@ -8,11 +8,21 @@ import socket
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Optional, Protocol, Type
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterable,
+    Optional,
+    Protocol,
+    Sequence,
+    Type,
+    TypeVar,
+)
 
 import orjson
 from hugedict.sqlite import SqliteDict
-from joblib import Parallel
+from joblib import Parallel, delayed
 from libactor.cache import Backend, SqliteBackend
 from libactor.typing import Compression
 from loguru import logger
@@ -20,6 +30,8 @@ from loguru import logger
 from statickg.models.file_and_path import ProcessStatus, RelPath, RelPathRefStr
 
 TYPE_ALIASES = {"typing.List": "list", "typing.Dict": "dict", "typing.Set": "set"}
+T = TypeVar("T")
+CB = TypeVar("CB", bound=Callable)
 
 
 def get_classpath(type: Type | Callable) -> str:
@@ -169,7 +181,7 @@ class CacheProcess:
         self.db[filepath] = ProcessStatus(key, is_success=True)
 
 
-class Fn:
+class Fn(Generic[T]):
     instances = {}
 
     def __init__(self, workdir: Path):
@@ -177,13 +189,17 @@ class Fn:
 
     @classmethod
     def get_instance(cls, workdir: Path):
-        if workdir not in cls.instances:
-            cls.instances[workdir] = cls(workdir)
-        return cls.instances[workdir]
+        # preventing parallel execution share the same `cls.instances`...
+        if (cls, workdir) not in cls.instances:
+            cls.instances[(cls, workdir)] = cls(workdir)
+        return cls.instances[(cls, workdir)]
 
     @classmethod
-    def exec(cls, workdir: Path, **kwargs):
+    def exec(cls, workdir: Path, **kwargs) -> T:
         return cls.get_instance(workdir).invoke(**kwargs)
+
+    def invoke(self, **kwargs) -> T:
+        raise NotImplementedError()
 
 
 class InstanceWorkdir(Protocol):
@@ -391,8 +407,14 @@ def is_port_available(hostname: str, port: int):
 _parallel_executor = None
 
 
-def get_parallel_executor(parallel: bool = True):
+def get_parallel_executor(
+    parallel: bool = True,
+) -> Callable[[Iterable[T]], Iterable[T]]:
     global _parallel_executor
     if _parallel_executor is None:
         _parallel_executor = Parallel(n_jobs=-1, return_as="generator_unordered")
-    return _parallel_executor
+    return _parallel_executor  # type: ignore
+
+
+def typed_delayed(func: CB) -> CB:
+    return delayed(func)  # type: ignore
