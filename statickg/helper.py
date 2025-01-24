@@ -412,7 +412,9 @@ def get_parallel_executor(
 ) -> Callable[[Iterable[T]], Iterable[T]]:
     global _parallel_executor
     if _parallel_executor is None:
-        _parallel_executor = Parallel(n_jobs=-1, return_as="generator_unordered")
+        _parallel_executor = Parallel(
+            n_jobs=-1 if parallel else 1, return_as="generator_unordered"
+        )
     return _parallel_executor  # type: ignore
 
 
